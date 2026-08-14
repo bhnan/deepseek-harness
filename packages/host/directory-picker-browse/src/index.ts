@@ -18,7 +18,7 @@ import {
   DirectoryPicker, DirectoryPickerError,
 } from '@deepseek-ai/dsh-host-directory-picker'
 import type {
-  DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
+  DirectoryEntry, DirectoryListing, DirectoryListOptions, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
 
 /**
@@ -198,7 +198,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
 
   private readonly browseCapability: DirectoryPickerCapability = {
     kind: 'browse',
-    list: (path, signal) => this.list(path, signal),
+    list: (path, signal, options) => this.list(path, signal, options),
     createDirectory: (path, name) => this.createDirectory(path, name),
   }
 
@@ -214,7 +214,8 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
     return this.browseCapability
   }
 
-  private async list(path?: string, signal?: AbortSignal): Promise<DirectoryListing> {
+  private async list(path?: string, signal?: AbortSignal, options?: DirectoryListOptions): Promise<DirectoryListing> {
+    const wantFiles = options?.files === true
     const home = homedir()
     // The seam contract takes fully qualified paths only; resolve() would
     // silently rebase a relative or empty wire value under the host process
@@ -233,6 +234,12 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
     const keep = this.config.maxEntries + 1
     const window: ListingCandidate[] = []
     let evicted = false
+    // Files ride their own bounded window under the same discipline, so a
+    // file-heavy level cannot evict directory rows (and vice versa). Regular
+    // files only: a file behind a symlink stays a picker-invisible row, and
+    // following it would add a stat probe per candidate.
+    const fileWindow: ListingCandidate[] = []
+    let filesEvicted = false
     try {
       // Every filesystem await races the caller's signal: a stalled
       // opendir/read on a network filesystem must not keep a departed
@@ -256,7 +263,13 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
           if (dirent === null) break
           // Only rows a browser could enter contend for the window; dirent
           // says "directory" outright, a symlink needs the later stat probe.
-          if (!dirent.isDirectory() && !dirent.isSymbolicLink()) continue
+          if (!dirent.isDirectory() && !dirent.isSymbolicLink()) {
+            if (wantFiles && dirent.isFile()) {
+              const fileCandidate = { name: dirent.name, isDirectory: false, isSymbolicLink: false }
+              if (boundedInsert(fileWindow, fileCandidate, keep)) filesEvicted = true
+            }
+            continue
+          }
           const candidate = { name: dirent.name, isDirectory: dirent.isDirectory(), isSymbolicLink: dirent.isSymbolicLink() }
           if (boundedInsert(window, candidate, keep)) evicted = true
         }
@@ -293,7 +306,19 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       }
       entries.push(row)
     }
-    return { path: target, home, crumbs: ancestryCrumbs(target), entries, truncated }
+    if (!wantFiles) return { path: target, home, crumbs: ancestryCrumbs(target), entries, truncated }
+    const files: DirectoryEntry[] = []
+    let filesTruncated = filesEvicted
+    for (const candidate of fileWindow) {
+      if (files.length === this.config.maxEntries) {
+        filesTruncated = true
+        break
+      }
+      // Same POSIX hidden convention as directory rows; no probe needed —
+      // the dirent already said "regular file".
+      files.push({ name: candidate.name, path: join(target, candidate.name), hidden: candidate.name.startsWith('.') })
+    }
+    return { path: target, home, crumbs: ancestryCrumbs(target), entries, truncated, files, filesTruncated }
   }
 
   private async createDirectory(path: string, name: string): Promise<string> {
