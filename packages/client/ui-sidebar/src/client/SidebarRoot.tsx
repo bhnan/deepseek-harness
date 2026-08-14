@@ -178,6 +178,15 @@ export function SidebarRoot({
         })}
       </div>
 
+      {/* The workspace file-tree band sits between the browsing region and
+          the foot; wide state only (no rail affordance), and an empty hole
+          renders nothing. */}
+      {wide && (
+        <div className={css.fileArea}>
+          {renderSlot('sidebar.filetree', { wide })}
+        </div>
+      )}
+
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
         <div className={css.footerActions}>

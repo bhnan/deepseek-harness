@@ -30,6 +30,31 @@ export interface DirectoryListing {
   entries: DirectoryEntry[]
   /** True when the backend cut `entries` at its complete-result bound (the name-sorted tail is absent). */
   truncated: boolean
+  /** Direct child regular files, name-sorted; present only when the request asked for `files`. */
+  files?: DirectoryEntry[]
+  /** True when the backend cut `files` at its bound; present only when the request asked for `files`. */
+  filesTruncated?: boolean
+}
+
+/** host.readFile response value: one bounded read of a regular file for in-app preview. */
+export interface FileContent {
+  /** Absolute path actually read. */
+  path: string
+  /** Total file size in bytes (may exceed what `content` carries). */
+  size: number
+  /**
+   * How the preview should treat the payload: `text` carries a UTF-8 head in
+   * `content`; `image` carries the whole file base64-encoded in `content`
+   * with `mime` set; `binary` carries no content (not previewable, or an
+   * image over the server's bound).
+   */
+  kind: 'text' | 'image' | 'binary'
+  /** UTF-8 text head for `text`; base64 bytes for `image`; absent for `binary`. */
+  content?: string
+  /** Image mime type derived from the file extension; present only for `image`. */
+  mime?: string
+  /** True when `content` carries only the head of the file. */
+  truncated: boolean
 }
 
 /** Host-level unary methods. */
@@ -63,13 +88,14 @@ export interface HostApi {
 
   /**
    * List one directory level for the in-app browser; an absent path lists the
-   * host account's home directory. Only served under the `browse` capability;
-   * unreadable or missing targets fail with `directory-unreadable`. The
-   * carrier's request signal follows the caller, stopping the backend's scan
-   * on disconnect or timeout.
+   * host account's home directory. `files: true` additionally reports the
+   * level's direct child regular files (the workspace file tree's read).
+   * Only served under the `browse` capability; unreadable or missing targets
+   * fail with `directory-unreadable`. The carrier's request signal follows
+   * the caller, stopping the backend's scan on disconnect or timeout.
    */
   listDirectory(
-    request: RpcRequest<{ path?: string }>,
+    request: RpcRequest<{ path?: string; files?: boolean }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<DirectoryListing>>
 
@@ -82,6 +108,19 @@ export interface HostApi {
   createDirectory(
     request: RpcRequest<{ path: string; name: string }>,
   ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Read one regular file for in-app preview (the workspace file tree's
+   * click). The read is bounded server-side: text previews carry only the
+   * UTF-8 head, images are base64-encoded whole up to a size bound, and
+   * anything else (or an unreadable/irregular target) reports `binary` or
+   * fails with `file-unreadable`. Privileged: loopback-only on the browser
+   * carrier, same class as the settings/credentials planes.
+   */
+  readFile(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<FileContent>>
 
   /**
    * Open a filesystem path with the operating system's default application

@@ -219,6 +219,10 @@
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
 
+    # Workspace file tree under the session list (sidebar.filetree hole).
+    - id: ui-file-tree
+      name: '@deepseek-ai/dsh-client-ui-file-tree'
+
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the two reference sources (ui-skill / ui-subagent).
     - id: ui-input-trigger

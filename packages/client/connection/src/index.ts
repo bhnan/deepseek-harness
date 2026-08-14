@@ -107,6 +107,9 @@ const PRIVILEGED_METHODS = new Set([
   'agentPreset.remove',
   'host.pickDirectory',
   'host.openPath',
+  // Arbitrary host-filesystem content read (file-tree preview): at least as
+  // sensitive as the settings/credentials planes beside it.
+  'host.readFile',
   'settings.describe',
   'settings.openDocument',
   'settings.update',

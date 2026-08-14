@@ -153,6 +153,14 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       />
     </div>
     <div
+      class="fileArea"
+    >
+      <div
+        data-slot="sidebar.filetree"
+        style="display: contents;"
+      />
+    </div>
+    <div
       class="footArea"
     >
       <div
@@ -242,6 +250,14 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
     >
       <div
         data-slot="sidebar.workspaces"
+        style="display: contents;"
+      />
+    </div>
+    <div
+      class="fileArea"
+    >
+      <div
+        data-slot="sidebar.filetree"
         style="display: contents;"
       />
     </div>

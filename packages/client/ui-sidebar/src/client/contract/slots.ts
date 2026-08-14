@@ -23,6 +23,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
     /**
+     * The workspace file-tree band between the browsing region and the foot.
+     * Declared by this package's 'sidebar' entry; ui-file-tree registers the
+     * panel. Wide-state only — the shell does not render this hole in the
+     * rail, and an empty hole renders nothing.
+     */
+    'sidebar.filetree': { kind: 'single'; scope: 'root'; owner: SidebarFileTreeOwnerProps }
+    /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
      * The sidebar passes only its column state — it holds no settings state.
@@ -45,6 +52,15 @@ export interface SidebarSectionOwnerProps {
   wide: boolean
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
+}
+
+/**
+ * Owner share of the file-tree band: the column display state only. Business
+ * data and actions arrive through the panel's own inject.
+ */
+export interface SidebarFileTreeOwnerProps {
+  /** Whether the sidebar renders wide content (the shell skips this hole in the rail). */
+  wide: boolean
 }
 
 /**
@@ -85,5 +101,5 @@ export type SidebarRootInjected = {
  */
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
-  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.settings' | 'sidebar.footer.action'>
+  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.filetree' | 'sidebar.settings' | 'sidebar.footer.action'>
   & SidebarRootInjected & PropsLocale<'sidebar'>

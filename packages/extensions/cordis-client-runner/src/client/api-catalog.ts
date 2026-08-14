@@ -325,9 +325,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the selected path, or null when the user cancelled.',
       },
       {
-        signature: 'listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>',
+        signature: 'listDirectory(path?: string, signal?: AbortSignal, options?: { files?: boolean }): Promise<DirectoryListing>',
         description: 'List one directory level through the Host\'s `browse` capability.',
-        parameters: [{ name: 'path', description: 'absolute directory to list; absent lists the Host home directory.' }, { name: 'signal', description: 'aborts the wire request (and the Host\'s scan) when the caller supersedes it.' }],
+        parameters: [{ name: 'path', description: 'absolute directory to list; absent lists the Host home directory.' }, { name: 'signal', description: 'aborts the wire request (and the Host\'s scan) when the caller supersedes it.' }, { name: 'options', description: '`files: true` additionally reports the level\'s direct child regular files.' }],
         returns: 'the level\'s listing with breadcrumb ancestry.',
       },
       {
