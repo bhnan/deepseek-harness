@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+
+# 运行时数据（学期数据为本地用户数据，不纳入版本控制；seed 启动时自动重建）
+data/
+!data/tmp/.gitkeep
+
+# npm 缓存（工作区内）
+.npm-cache/
+
+# 日志与系统文件
+*.log
+.DS_Store
+*.tmp
+dist-bridge/
+
+# 临时调试目录
+.tmp-dryrun*/
+
+# 学生成长档案：旧数据备份（含学生成绩快照，不入库）
+portfolio/scripts/backup/
