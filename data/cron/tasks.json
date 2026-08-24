@@ -1,0 +1,42 @@
+{
+  "tasks": [
+    {
+      "id": "daily-pipeline",
+      "name": "盘后数据管道",
+      "schedule": {
+        "type": "daily_trading",
+        "time": "16:45"
+      },
+      "tz": "Asia/Shanghai",
+      "command": "/root/bhn/trading/.venv/bin/python3",
+      "args": [
+        "/root/bhn/trading/scripts/run_daily_pipeline.py"
+      ],
+      "enabled": true,
+      "timeout_minutes": 60,
+      "last_run": "2026-08-24T12:59:32.426Z",
+      "last_status": "success",
+      "last_log": "/root/bhn/trading/data/cron/logs/daily-pipeline-2026-08-24.log",
+      "last_exit_code": 0
+    },
+    {
+      "id": "review-agent",
+      "name": "盘后复盘 Agent（LLM 生成）",
+      "schedule": {
+        "type": "daily_trading",
+        "time": "17:00"
+      },
+      "tz": "Asia/Shanghai",
+      "command": "/bin/bash",
+      "args": [
+        "/root/bhn/trading/scripts/review_agent.sh"
+      ],
+      "enabled": true,
+      "timeout_minutes": 30,
+      "last_run": "2026-08-24T14:22:23.690Z",
+      "last_status": "success",
+      "last_log": "/root/bhn/trading/data/cron/logs/review-agent-2026-08-24.log",
+      "last_exit_code": 0
+    }
+  ]
+}

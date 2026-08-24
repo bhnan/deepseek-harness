@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:assets/review",
+  "title": "Review",
+  "description": "A14 盘后复盘产物（LLM 产出，无数据源可复用，字段即定义）。枚举词汇待用户确认（spec §待确认）。",
+  "type": "object",
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d{1,2}\\.\\d{1,3}$" },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "missing": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["summary", "regime", "trend", "risk_level", "watch_points", "market", "news", "sector"],
+      "properties": {
+        "summary": { "type": "string", "description": "大盘总结" },
+        "regime": { "type": "string", "enum": ["risk_on", "neutral", "defensive"] },
+        "trend": { "type": "string", "enum": ["up", "range_bound", "down"] },
+        "risk_level": { "type": "string", "enum": ["low", "medium", "medium_high", "high"] },
+        "watch_points": { "type": "array", "items": { "type": "string" } },
+        "market": {
+          "type": "object",
+          "description": "量能与宽度：数值字段由生成流程注入当天数据（A4），LLM 只写 *_note 解读文字，禁止编造数字。环比与量能定调依赖昨日 A4 快照——快照不可补历史，昨日前文件缺失时 amount_change_pct/volume_tone/volume_note 缺席（前端显示 --），不得伪造",
+          "required": ["amount", "breadth", "breadth_note"],
+          "properties": {
+            "amount": { "type": "number", "description": "两市总成交额，元（注入自 A4）" },
+            "amount_change_pct": { "type": "number", "description": "成交额环比昨日 %（注入，计算值）" },
+            "volume_tone": { "type": "string", "enum": ["shrink", "expand", "flat"], "description": "缩量 / 放量 / 持平" },
+            "volume_note": { "type": "string", "description": "量能解读（LLM 写）：缩量到什么水平、连续几天、意味着什么" },
+            "breadth": {
+              "type": "object",
+              "description": "涨跌家数（注入自 A4 市场宽度）",
+              "required": ["advancers", "decliners", "limit_up", "limit_down"],
+              "properties": {
+                "advancers": { "type": "integer", "minimum": 0, "description": "上涨家数" },
+                "decliners": { "type": "integer", "minimum": 0, "description": "下跌家数" },
+                "limit_up": { "type": "integer", "minimum": 0, "description": "涨停家数" },
+                "limit_down": { "type": "integer", "minimum": 0, "description": "跌停家数" }
+              },
+              "additionalProperties": false
+            },
+            "breadth_note": { "type": "string", "description": "涨跌结构解读（LLM 写）：普涨还是分化、涨停跌停比" }
+          },
+          "additionalProperties": false
+        },
+        "news": {
+          "type": "array",
+          "description": "当天重要新闻及对市场的影响（结合 A10 公告/快讯，LLM 挑选重要的写，无关紧要的可为空数组）",
+          "items": {
+            "type": "object",
+            "required": ["title", "impact"],
+            "properties": {
+              "title": { "type": "string", "description": "新闻/公告标题" },
+              "impact": { "type": "string", "description": "对市场/板块/个股的影响" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "sector": {
+          "type": "object",
+          "required": ["leading_sectors", "lagging_sectors", "main_lines", "continuation", "diffusion", "divergence", "retreat_signals", "market_style"],
+          "properties": {
+            "leading_sectors": {
+              "type": "array",
+              "description": "强势板块：哪些强、为什么强（按强度排序）",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "行业名称（申万一级）" },
+                  "reason": { "type": "string", "description": "强势理由" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "lagging_sectors": {
+              "type": "array",
+              "description": "弱势板块：哪些弱、为什么弱",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "行业名称（申万一级）" },
+                  "reason": { "type": "string", "description": "弱势理由" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "main_lines": { "type": "array", "items": { "type": "string" }, "description": "市场主线/龙头方向" },
+            "continuation": { "type": "string", "description": "持续性判断" },
+            "diffusion": { "type": "string", "description": "扩散度判断" },
+            "divergence": { "type": "string", "description": "分歧判断" },
+            "retreat_signals": { "type": "array", "items": { "type": "string" }, "description": "退潮/衰竭信号，可为空" },
+            "market_style": { "type": "string", "enum": ["broad_rally", "narrow_strength", "rotational"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

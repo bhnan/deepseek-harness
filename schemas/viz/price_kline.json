@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/price_kline",
+  "title": "PriceKline",
+  "description": "viz_block：K线。以 DojoAgents 后端 _map_price_trends 为准：payload.bars[{date,open,high,low,close,volume?}]（prompt 里叫 klines/datetime 是差异）+ period_start/period_end/chart_change_pct/window_change_pct。护栏：行情数据必须来自工具调用（source_tool），禁止 Agent 硬编码。渲染器与 Entity 页共用。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "price_kline" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string", "description": "数据来源工具名，如 get_ticker_price_trends" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["ticker", "market", "bars"],
+      "properties": {
+        "ticker": { "type": "string", "pattern": "^\\d{6}$", "description": "6 位 A 股代码" },
+        "market": { "type": "string", "enum": ["sh", "sz", "bj"] },
+        "bars": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["date", "open", "high", "low", "close"],
+            "properties": {
+              "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "open": { "type": "number" },
+              "high": { "type": "number" },
+              "low": { "type": "number" },
+              "close": { "type": "number" },
+              "volume": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "period_start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "period_end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "chart_change_pct": { "type": "number" },
+        "window_change_pct": { "type": "number" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

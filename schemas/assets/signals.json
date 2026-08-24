@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:assets/signals",
+  "title": "Signals",
+  "description": "A13 策略表现快照。呈现方式与板块（sw_l1_spot）对齐：每个启用策略 = 一个聚合实体（标识/名称/当日表现/表现曲线/当前选中成分），与'信号指向单只股票'解耦——策略表现不必与个股绑定，字段形态与板块一致。",
+  "type": "object",
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d{1,2}\\.\\d{1,3}$" },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "missing": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["status", "scanned_count", "strategies"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["scanned", "not_scanned", "disabled"],
+          "description": "scanned=已扫描 / not_scanned=当日未执行扫描（区别于无信号） / disabled=无启用策略"
+        },
+        "scanned_count": { "type": "integer", "minimum": 0, "description": "参与扫描的启用策略数" },
+        "strategies": {
+          "type": "array",
+          "description": "启用策略的当日表现，每个策略一个聚合实体（与板块同形态）",
+          "items": {
+            "type": "object",
+            "required": ["strategy_id", "strategy_name", "derived"],
+            "properties": {
+              "strategy_id": { "type": "string", "description": "≈ 板块的 指数代码：策略标识" },
+              "strategy_name": { "type": "string", "description": "≈ 板块的 指数名称：展示名" },
+              "derived": {
+                "type": "object",
+                "description": "derived 层：本系统算出来的字段（≈ 板块的 derived.change_pct 及日线曲线/成分）。change_pct 缺席 = 暂无表现数据（前端显示 --，不得伪造 0）",
+                "properties": {
+                  "change_pct": { "type": "number", "description": "当日表现：选中股票组合当日等权平均涨跌幅 %（≈ 板块涨跌幅），可缺席" },
+                  "performance_curve": {
+                    "type": "array",
+                    "description": "策略表现序列（≈ 板块动量曲线：A6 日线），无数据则字段缺席",
+                    "items": {
+                      "type": "object",
+                      "required": ["t", "v"],
+                      "properties": {
+                        "t": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+                        "v": { "type": "number", "description": "策略净值/等权组合净值" }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "constituents": {
+                    "type": "array",
+                    "description": "当前选中的股票（≈ 板块成分股：A5），无选股则字段缺席或空数组",
+                    "items": {
+                      "type": "object",
+                      "required": ["symbol", "name"],
+                      "properties": {
+                        "symbol": { "type": "string", "description": "代码（数据源形态）" },
+                        "name": { "type": "string" },
+                        "weight": { "type": "number", "description": "权重，可选" }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "signal_note": { "type": "string", "description": "触发/观察说明（原 rationale 语义）" },
+                  "dsl_status": { "type": "string", "enum": ["executed", "error"], "description": "DSL 策略执行状态；legacy 策略无此字段" },
+                  "dsl_rules": {
+                    "type": "object",
+                    "description": "DSL 规则人类可读文本（fatigue/repair/pairing），供前端展示，不重复存原始 JSON",
+                    "properties": {
+                      "fatigue": { "type": "string" },
+                      "repair": { "type": "string" },
+                      "pairing": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

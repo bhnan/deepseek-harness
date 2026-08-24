@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/table",
+  "title": "Table",
+  "description": "viz_block：表格。以 DojoAgents 后端 _generic_table 为准：payload.columns[{key,label,format?}] + rows；format 如 percent/number/market_cap。也是其他 viz 校验失败的兜底形态。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "table" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["columns"],
+      "anyOf": [
+        { "required": ["rows"] },
+        { "required": ["groups"] }
+      ],
+      "properties": {
+        "layout": { "type": "string", "description": "flat / by_market 等，可选" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "label"],
+            "properties": {
+              "key": { "type": "string" },
+              "label": { "type": "string" },
+              "format": { "type": "string", "description": "percent / number / market_cap 等，渲染器可识别格式" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "键对应 columns[].key；单元格值为 string 或 number",
+            "additionalProperties": { "type": ["string", "number"] }
+          }
+        },
+        "groups": {
+          "type": "array",
+          "description": "分组形态（by_market 布局用），每项 {market?, rows: [...]}",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

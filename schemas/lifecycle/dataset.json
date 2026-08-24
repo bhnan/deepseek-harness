@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/dataset",
+  "title": "Dataset",
+  "description": "数据集定义（数据源/字段/复权/日历/版本/时间范围）。定义对象，版本化存储；BacktestRun.environment.data_version 与这里的 data_version 对应。",
+  "type": "object",
+  "required": ["id", "version", "name", "source", "adjust", "calendar", "data_version"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^ds_\\w+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string" },
+    "source": { "type": "string", "description": "如 akshare_sina（对应数据资产 B1/A3/A6/A8/A9）" },
+    "fields": { "type": "array", "items": { "type": "string" }, "description": "open/close/high/low/volume/amount 等" },
+    "adjust": { "type": "string", "enum": ["hfq", "none", "factor"], "description": "回测统一 hfq（护栏 D5）" },
+    "calendar": { "type": "string", "description": "交易日历引用，如 trade_dates_sina" },
+    "period": {
+      "type": "object",
+      "properties": {
+        "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      }
+    },
+    "data_version": { "type": "string", "description": "数据快照版本，如 cn_stock_20260815" }
+  },
+  "additionalProperties": true
+}

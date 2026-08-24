@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/strategy",
+  "title": "Strategy",
+  "description": "策略：信号成立后怎么交易（买什么/何时买卖/买多少/什么范围）。定义对象，版本化存储；引用 Signal/Universe/Portfolio/Execution 的特定版本。",
+  "type": "object",
+  "required": ["id", "version", "signal_id", "signal_version", "universe_id", "entry_rule", "exit_rule", "portfolio_config_id", "execution_config_id"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^strategy_\\w+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "signal_id": { "type": "string" },
+    "signal_version": { "type": "integer", "minimum": 1, "description": "引用 Signal 的特定版本（版本化引用）" },
+    "universe_id": { "type": "string" },
+    "entry_rule": {
+      "type": "object",
+      "required": ["timing"],
+      "properties": {
+        "timing": { "type": "string", "enum": ["next_open", "next_close", "same_close"], "description": "next_open = 信号次日开盘成交（T+1 两阶段时间轴默认）" },
+        "extra": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "exit_rule": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["holding_period", "stop", "signal_off", "combined"], "description": "holding_period=持有N日；stop=止损/止盈；combined=多条件" },
+        "holding_days": { "type": "integer", "minimum": 1 },
+        "take_profit_pct": { "type": "number" },
+        "stop_loss_pct": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "stop_loss_rule": {
+      "type": "object",
+      "description": "对齐 paper_trading 止损规则（回测须复现模拟盘行为）",
+      "properties": {
+        "type": { "type": "string", "enum": ["price_pct", "atr", "window_close"] },
+        "value": { "type": "number" },
+        "window_days": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "selection_rule": {
+      "type": "object",
+      "description": "选股：信号成立后按什么挑出最终持仓",
+      "properties": {
+        "type": { "type": "string", "enum": ["rank_top", "rank_bottom", "all"] },
+        "metric": { "type": "string" },
+        "n": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "portfolio_config_id": { "type": "string", "description": "引用 Portfolio 配置（仓位/权重/行业限制）" },
+    "execution_config_id": { "type": "string", "description": "引用 Execution 配置（费用/涨跌停/T+1）" }
+  },
+  "additionalProperties": false
+}

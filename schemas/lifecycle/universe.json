@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/universe",
+  "title": "Universe",
+  "description": "股票池定义（统一维护，Strategy 按 id+version 引用）。定义对象，版本化存储。",
+  "type": "object",
+  "required": ["id", "version", "name", "kind"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^univ_\\w+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "description": "如 中证500 / 自选池" },
+    "kind": { "type": "string", "enum": ["index_constituents", "watchlist", "custom"] },
+    "index_code": { "type": "string", "description": "kind=index_constituents 时：如 sh000905" },
+    "symbols": { "type": "array", "items": { "type": "string" }, "description": "kind=custom/watchlist 时的代码列表" },
+    "description": { "type": "string" }
+  },
+  "additionalProperties": true
+}

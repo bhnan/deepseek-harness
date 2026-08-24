@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/evaluation",
+  "title": "Evaluation",
+  "description": "评价结果：所有策略用同一把尺子（统一指标集）。plan 为评价计划（v0 内嵌默认计划，可引用独立计划文件），metrics 为本次运行结果。执行对象，不可变。",
+  "type": "object",
+  "required": ["id", "run_id", "evaluation_plan_id", "plan", "metrics"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^eval_\\w+$" },
+    "run_id": { "type": "string" },
+    "evaluation_plan_id": { "type": "string", "description": "默认 eval_default" },
+    "plan": {
+      "type": "object",
+      "description": "统一评价计划（v0 内嵌默认）：所有策略同一指标集，禁止各看各的",
+      "required": ["metrics", "segments"],
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["annual_return", "excess_return", "sharpe", "max_drawdown", "calmar", "win_rate", "turnover", "t_stat", "p_value"] }
+        },
+        "segments": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["year", "market_regime", "market_cap", "industry"], "description": "market_regime 口径对接 review.json 的 regime 枚举" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["annual_return", "excess_return", "sharpe", "max_drawdown"],
+      "properties": {
+        "annual_return": { "type": "number" },
+        "excess_return": { "type": "number" },
+        "sharpe": { "type": "number" },
+        "max_drawdown": { "type": "number", "description": "负值" },
+        "calmar": { "type": "number" },
+        "win_rate": { "type": "number" },
+        "turnover": { "type": "number" },
+        "t_stat": { "type": "number" },
+        "p_value": { "type": "number" },
+        "benchmark_return": { "type": "number" },
+        "annual_benchmark_return": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "segments_result": {
+      "type": "object",
+      "description": "分段结果（按 year/market_regime 等），可选",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/sparkline",
+  "title": "Sparkline",
+  "description": "viz_block：迷你走势。以 DojoAgents 后端 _generic_sparkline 为准：payload.points[{date?,value}]（prompt 里叫 values 是差异），change_percent?/market?。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "sparkline" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["points"],
+      "properties": {
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "value": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "change_percent": { "type": "number" },
+        "price": { "type": "number", "description": "最新价，可选" },
+        "market": { "type": "string", "enum": ["sh", "sz", "bj"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

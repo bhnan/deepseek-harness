@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:assets/a_spot",
+  "title": "ASpot",
+  "description": "A4 全市场个股收盘快照。stocks[] 字段 = AKShare stock_zh_a_spot 原列名原样透传（成交量单位：股）。derived 层 = 本系统算出来的字段（市场宽度，源接口没有）。",
+  "type": "object",
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d{1,2}\\.\\d{1,3}$" },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "missing": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["stocks", "derived"],
+      "properties": {
+        "stocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["代码", "名称", "最新价", "涨跌幅"],
+            "properties": {
+              "代码": { "type": "string", "pattern": "^(sh|sz|bj)\\d{6}$" },
+              "名称": { "type": "string" },
+              "最新价": { "type": "number" },
+              "涨跌额": { "type": "number" },
+              "涨跌幅": { "type": "number", "description": "单位 %（源值）" },
+              "买入": { "type": "number" },
+              "卖出": { "type": "number" },
+              "昨收": { "type": "number" },
+              "今开": { "type": "number" },
+              "最高": { "type": "number" },
+              "最低": { "type": "number" },
+              "成交量": { "type": "number", "description": "单位：股（源单位）" },
+              "成交额": { "type": "number", "description": "单位：元（源单位）" },
+              "时间戳": { "type": "string", "description": "源快照时间 HH:MM:SS" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "derived": {
+          "type": "object",
+          "description": "derived 层：本系统算出来的字段（源接口没有）",
+          "required": ["market_breadth"],
+          "properties": {
+            "market_breadth": {
+              "type": "object",
+              "required": ["advancers", "decliners", "limit_up", "limit_down", "total_amount"],
+              "properties": {
+                "advancers": { "type": "integer", "minimum": 0, "description": "上涨家数" },
+                "decliners": { "type": "integer", "minimum": 0, "description": "下跌家数" },
+                "unchanged": { "type": "integer", "minimum": 0, "description": "平盘家数" },
+                "limit_up": { "type": "integer", "minimum": 0, "description": "涨停家数（昨收×1.1 判定）" },
+                "limit_down": { "type": "integer", "minimum": 0, "description": "跌停家数" },
+                "total_amount": { "type": "number", "description": "两市总成交额，元" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

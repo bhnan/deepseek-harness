@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/backtest_run",
+  "title": "BacktestRun",
+  "description": "一次实验的实际运行记录。执行对象，不可变。environment 四件套 + guardrails 三项盖章保证可重复、可信。",
+  "type": "object",
+  "required": ["id", "experiment_id", "started_at", "status", "environment", "resolved_config", "guardrails"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^run_\\w+$" },
+    "experiment_id": { "type": "string" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["running", "success", "failed"] },
+    "environment": {
+      "type": "object",
+      "description": "可重复性四件套：引擎版本 + 代码版本 + 数据版本 + 配置哈希，四者固定则结果可复现",
+      "required": ["engine", "engine_version", "code_commit", "data_version", "config_hash"],
+      "properties": {
+        "engine": { "type": "string", "description": "如 pandas-backtester" },
+        "engine_version": { "type": "string" },
+        "code_commit": { "type": "string", "description": "git commit hash" },
+        "data_version": { "type": "string", "description": "如 cn_stock_20260815（数据快照版本）" },
+        "config_hash": { "type": "string", "description": "resolved_config 的哈希" }
+      },
+      "additionalProperties": false
+    },
+    "resolved_config": {
+      "type": "object",
+      "description": "本次运行实际生效的完整配置快照（含参数 overrides 展开后的最终值），不可变",
+      "additionalProperties": true
+    },
+    "guardrails": {
+      "type": "object",
+      "description": "回测护栏三项自检盖章（回测护栏文档 §3.3/§3.4），任一 false 则结果作废",
+      "required": ["as_of", "t_plus_1_execution", "leak_check"],
+      "properties": {
+        "as_of": { "type": "boolean", "description": "as_of 数据视图生效，无未来函数" },
+        "t_plus_1_execution": { "type": "boolean", "description": "信号 t 日 → t+1 开盘成交" },
+        "leak_check": { "type": "boolean", "description": "泄漏自检零告警" }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "产物文件路径",
+      "properties": {
+        "trades": { "type": "string" },
+        "positions": { "type": "string" },
+        "equity_curve": { "type": "string" },
+        "logs": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

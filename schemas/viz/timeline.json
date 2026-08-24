@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/timeline",
+  "title": "Timeline",
+  "description": "viz_block：新闻/事件时间线。以 DojoAgents 后端 _map_news_events 为准：payload.items[{kind,date,title,summary?}]（prompt 里叫 news 是差异）。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "timeline" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "date", "title"],
+            "properties": {
+              "kind": { "type": "string", "description": "news / event 等" },
+              "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "title": { "type": "string" },
+              "summary": { "type": "string" },
+              "source": { "type": "string", "description": "来源（cninfo/cls/ths/sina），可选" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

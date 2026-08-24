@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:schema:contracts/tracking",
+  "title": "Tracking",
+  "description": "四级契约 6.4：前向跟踪记录。沿用现有 lab/live_tracking factor_v1_*.json 结构作为标准，不新造",
+  "type": "object",
+  "required": ["observation_date", "horizon_trading_days", "sample_count", "mean_return", "mean_relative_return", "grade_summary"],
+  "properties": {
+    "observation_date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "horizon_trading_days": { "type": "integer", "minimum": 1, "description": "观察窗口交易日数（t5/t20/weekly）" },
+    "sample_count": { "type": "integer", "minimum": 0 },
+    "priced_sample_count": { "type": "integer", "minimum": 0, "description": "有价格的样本数" },
+    "tracked_count": { "type": "integer", "minimum": 0 },
+    "mean_return": { "type": "number" },
+    "median_return": { "type": "number" },
+    "positive_rate": { "type": "number", "description": "胜率 0~1" },
+    "mean_relative_return": { "type": "number", "description": "相对基准超额均值" },
+    "median_relative_return": { "type": "number" },
+    "positive_relative_rate": { "type": "number" },
+    "grade_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["grade", "sample_count", "mean_return", "positive_return_rate", "mean_relative_return"],
+        "properties": {
+          "grade": { "type": "string", "description": "A/B/C... 档位" },
+          "sample_count": { "type": "integer" },
+          "mean_return": { "type": "number" },
+          "median_return": { "type": "number" },
+          "positive_return_rate": { "type": "number" },
+          "mean_relative_return": { "type": "number" },
+          "median_relative_return": { "type": "number" },
+          "positive_relative_rate": { "type": "number" }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

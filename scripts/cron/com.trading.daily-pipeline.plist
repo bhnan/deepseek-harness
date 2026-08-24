@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.trading.daily-pipeline</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/bhn/Desktop/funny_project/trading/.venv/bin/python</string>
+        <string>/Users/bhn/Desktop/funny_project/trading/scripts/run_daily_pipeline.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/bhn/Desktop/funny_project/trading</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>16</integer>
+        <key>Minute</key><integer>45</integer>
+        <key>Weekday</key><integer>1</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/bhn/Desktop/funny_project/trading/logs/daily_pipeline.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/bhn/Desktop/funny_project/trading/logs/daily_pipeline.err.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

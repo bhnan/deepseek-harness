@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/conclusion",
+  "title": "Conclusion",
+  "description": "结论：对数字的解释与裁决（Result 是数字，Conclusion 是解释）。执行对象，不可变。verdict 由 agent 写回 Idea.status（formalized→validated/rejected）。",
+  "type": "object",
+  "required": ["id", "experiment_id", "verdict", "confidence", "summary"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^concl_\\w+$" },
+    "experiment_id": { "type": ["string", "null"], "description": "关联实验 id；脚本直验（未走正式实验）的结论可空，此时必须用 idea_id 回链 Idea" },
+    "idea_id": { "type": "string", "description": "直链 Idea（可选）：实验链路外的直验结论用其回链 Idea；经 Experiment 的结论无需填（由 experiment→signal→idea 推导）" },
+    "verdict": { "type": "string", "enum": ["validated", "partially_validated", "rejected", "inconclusive"] },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+    "summary": { "type": "string", "description": "对结果的解释（不是重复数字）" },
+    "supporting_evidence": { "type": "array", "items": { "type": "string" } },
+    "limitations": { "type": "array", "items": { "type": "string" }, "description": "已知局限/护栏未覆盖的风险" },
+    "applicable_conditions": { "type": "array", "items": { "type": "string" }, "description": "适用条件（什么市场环境有效）" },
+    "failure_conditions": { "type": "array", "items": { "type": "string" }, "description": "失效条件" },
+    "next_experiments": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time", "description": "结论落盘时间" },
+    "backtest_path": { "type": "string", "description": "验证产物路径（如 lab/backtests/{name}/summary.json）" }
+  },
+  "additionalProperties": false
+}

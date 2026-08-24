@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:assets/announcements",
+  "title": "Announcements",
+  "description": "A10 公告/新闻事件。announcements[] = AKShare stock_zh_a_disclosure_report_cninfo 原列名原样透传；flashes[] = stock_info_global_cls 原列名原样透传。derived 层 = 本系统的事件归因（类型/严重度/说明），源接口没有。",
+  "type": "object",
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d{1,2}\\.\\d{1,3}$" },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "missing": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["announcements", "flashes", "derived"],
+      "properties": {
+        "announcements": {
+          "type": "array",
+          "description": "巨潮公告（cninfo）",
+          "items": {
+            "type": "object",
+            "required": ["代码", "简称", "公告标题", "公告时间", "公告链接"],
+            "properties": {
+              "代码": { "type": "string", "pattern": "^\\d{6}$", "description": "cninfo 原值：6 位无前缀" },
+              "简称": { "type": "string" },
+              "公告标题": { "type": "string" },
+              "公告时间": { "type": "string", "description": "cninfo 原值格式" },
+              "公告链接": { "type": "string" },
+              "derived": {
+                "type": "object",
+                "description": "本系统的事件归因",
+                "properties": {
+                  "event_type": { "const": "announcement" },
+                  "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "note": { "type": "string", "description": "为什么重要" },
+                  "symbol": { "type": "string", "description": "关联标的（自选/持仓范围内的才填）" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "flashes": {
+          "type": "array",
+          "description": "财联社电报（cls），仅作补充",
+          "items": {
+            "type": "object",
+            "required": ["标题", "内容", "发布日期", "发布时间"],
+            "properties": {
+              "标题": { "type": "string" },
+              "内容": { "type": "string" },
+              "发布日期": { "type": "string" },
+              "发布时间": { "type": "string" },
+              "derived": {
+                "type": "object",
+                "properties": {
+                  "event_type": { "const": "news" },
+                  "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "note": { "type": "string" },
+                  "symbol": { "type": "string" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "derived": {
+          "type": "object",
+          "description": "文件级 derived：覆盖度说明",
+          "required": ["coverage_note"],
+          "properties": {
+            "coverage_note": { "type": "string", "description": "扫描标的范围 + 快讯覆盖窗口说明" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

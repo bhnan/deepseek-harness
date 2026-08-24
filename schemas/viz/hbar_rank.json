@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/hbar_rank",
+  "title": "HbarRank",
+  "description": "viz_block：涨跌榜。以 DojoAgents 后端 _generic_hbar_rank 为准：payload.gainers/losers 两数组（可为空，至少一个非空）。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "hbar_rank" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["gainers", "losers"],
+      "anyOf": [
+        { "properties": { "gainers": { "minItems": 1 } }, "required": ["gainers"] },
+        { "properties": { "losers": { "minItems": 1 } }, "required": ["losers"] }
+      ],
+      "properties": {
+        "gainers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string" },
+              "value": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "losers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string" },
+              "value": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

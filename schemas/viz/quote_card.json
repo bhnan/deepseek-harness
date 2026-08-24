@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/quote_card",
+  "title": "QuoteCard",
+  "description": "viz_block：单标的报价快照。对齐 DojoAgents ticker_quote mapper 的单标的形态；A股适配：ticker=6位代码，market ∈ sh/sz/bj。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "quote_card" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["ticker", "market", "last_price", "change_percent"],
+      "properties": {
+        "ticker": { "type": "string", "pattern": "^\\d{6}$", "description": "6 位 A 股代码" },
+        "market": { "type": "string", "enum": ["sh", "sz", "bj"] },
+        "name_zh": { "type": "string", "description": "中文名（对齐 DojoAgents name_zh；A股场景主用）" },
+        "name_en": { "type": "string" },
+        "last_price": { "type": "number" },
+        "change_percent": { "type": "number" },
+        "high": { "type": "number" },
+        "low": { "type": "number" },
+        "pe": { "type": ["number", "null"] },
+        "pb": { "type": ["number", "null"] },
+        "market_cap": { "type": "number" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

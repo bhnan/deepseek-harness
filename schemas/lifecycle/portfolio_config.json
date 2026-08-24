@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/portfolio_config",
+  "title": "PortfolioConfig",
+  "description": "组合配置（持仓数量/最大仓位/权重方式/行业限制/换仓频率）。注意与 schemas/assets/portfolio.json 的区别：本文件是'仓位怎么配'的配置定义，assets/portfolio 是'组合当日快照'的数据资产。定义对象，版本化存储。",
+  "type": "object",
+  "required": ["id", "version", "name"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^port_\\w+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "description": "如 p_default" },
+    "max_positions": { "type": "integer", "minimum": 1, "description": "最大持仓数" },
+    "max_weight": { "type": "number", "description": "单票最大仓位 0~1" },
+    "weighting": { "type": "string", "enum": ["equal_weight", "value_weight", "signal_weight"], "description": "权重方式" },
+    "industry_limit": { "type": "number", "description": "单一行业仓位上限 0~1" },
+    "rebalance_frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "quarterly"], "description": "换仓频率" },
+    "cash_buffer": { "type": "number", "description": "现金缓冲比例" }
+  },
+  "additionalProperties": true
+}

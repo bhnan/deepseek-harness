@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/execution",
+  "title": "Execution",
+  "description": "执行配置（费用/涨跌停/停牌/T+1/最小交易单位）——字段即回测护栏文档 T1-T4 + 费用参数的正式化。定义对象，版本化存储。",
+  "type": "object",
+  "required": ["id", "version", "name"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^exec_\\w+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "description": "如 exec_default" },
+    "commission_open": { "type": "number", "description": "买入手续费率，默认 0.0005" },
+    "commission_close": { "type": "number", "description": "卖出手续费率，默认 0.0015" },
+    "stamp_tax": { "type": "number", "description": "印花税（卖出），默认 0.0005" },
+    "slippage": { "type": "number", "description": "滑点，默认 0" },
+    "min_commission": { "type": "number", "description": "最低手续费，默认 5 元" },
+    "t_plus_1": { "type": "boolean", "description": "T+1 制度（护栏 T3），默认 true" },
+    "limit_up_down": { "type": "boolean", "description": "涨跌停不可成交（护栏 T1），默认 true；阈值按板块 10/20/30%，ST 5%" },
+    "suspend_skip": { "type": "boolean", "description": "停牌不可交易（护栏 T2），默认 true" },
+    "min_lot": { "type": "integer", "description": "最小交易单位 100 股" }
+  },
+  "additionalProperties": true
+}

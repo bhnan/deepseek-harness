@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:lifecycle/idea",
+  "title": "Idea",
+  "description": "投资直觉收件箱。允许不严谨：现象级观察一句话即可。Idea 不版本化（可变），formalized 后由 Signal 承载严谨命题。",
+  "type": "object",
+  "required": ["id", "title", "description", "source", "status", "created_at"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^idea_\\w+$" },
+    "title": { "type": "string" },
+    "description": { "type": "string", "description": "原始直觉，怎么模糊都行" },
+    "source": { "type": "string", "enum": ["observation", "user_observation", "research", "news", "paper", "other"] },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["draft", "formalized", "testing", "validated", "rejected", "archived"] }
+  },
+  "additionalProperties": true
+}

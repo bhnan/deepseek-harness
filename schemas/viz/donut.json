@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:viz/donut",
+  "title": "Donut",
+  "description": "viz_block：占比环形图。以 DojoAgents 后端 _generic_donut 为准：payload.slices[{key,label,value}]。",
+  "type": "object",
+  "required": ["kind", "payload"],
+  "properties": {
+    "kind": { "const": "donut" },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "subtitle": { "type": ["string", "null"] },
+    "source_tool": { "type": "string" },
+    "truncated": { "type": "boolean" },
+    "payload": {
+      "type": "object",
+      "required": ["slices"],
+      "properties": {
+        "slices": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["key", "label", "value"],
+            "properties": {
+              "key": { "type": "string" },
+              "label": { "type": "string" },
+              "value": { "type": "number", "description": "占比 0~1 或任意正数值（渲染时归一化）" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

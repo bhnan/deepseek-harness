@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trading:assets/index_spot",
+  "title": "IndexSpot",
+  "description": "A2 指数收盘快照。字段 = AKShare stock_zh_index_spot_sina 原列名，原样透传（管道只裁剪所需指数，不改字段）。成交量单位：手；成交额单位：元。",
+  "type": "object",
+  "required": ["schema_version", "data"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d{1,2}\\.\\d{1,3}$" },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "missing": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["indices"],
+      "properties": {
+        "indices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["代码", "名称", "最新价", "涨跌幅"],
+            "properties": {
+              "代码": { "type": "string", "pattern": "^(sh|sz|bj)\\d{6}$" },
+              "名称": { "type": "string" },
+              "最新价": { "type": "number" },
+              "涨跌额": { "type": "number" },
+              "涨跌幅": { "type": "number", "description": "单位 %（源值）" },
+              "昨收": { "type": "number" },
+              "今开": { "type": "number" },
+              "最高": { "type": "number" },
+              "最低": { "type": "number" },
+              "成交量": { "type": "number", "description": "单位：手（源单位）" },
+              "成交额": { "type": "number", "description": "单位：元（源单位）" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
