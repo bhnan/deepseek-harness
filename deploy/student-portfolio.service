@@ -1,0 +1,15 @@
+[Unit]
+Description=Student Portfolio Web App (port 8797)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/apps/teacher-calendar/portfolio
+ExecStart=/usr/bin/node server/index.mjs
+Environment=PORT=8797
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
