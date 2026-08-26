@@ -3,14 +3,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-file-tree/client'
 import type { FileTreeInjected } from '@deepseek-ai/dsh-client-ui-file-tree/client'
 import { FileTreePanel } from '../src/client/FileTreePanel.tsx'
-
-// The service reads its initial locale from the browser; these specs assert
-// the shipped Chinese copy, so they state the browser they assume.
-usePinnedBrowserLanguages('zh-CN')
 
 /** Declare the shell-owned hole the plugin registers into ('root' stands in for the sidebar entry). */
 function declareHole(slots: SlotRegistry): () => void {
@@ -31,6 +26,9 @@ async function bench(declare = true) {
   ctx.provide('workspaces', workspaces as never)
   ctx.provide('sessions', {} as never)
   const locale = new LocaleRuntime(ctx)
+  // This node lane has no browser window, so LocaleRuntime opens on its English
+  // fallback. The copy assertion below reads the Chinese dictionary explicitly.
+  locale.setLocale('zh')
   ctx.provide('locale', locale)
   const slots = ctx.get('slots') as SlotRegistry
   if (declare) declareHole(slots)

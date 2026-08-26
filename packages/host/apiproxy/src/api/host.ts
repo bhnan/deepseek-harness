@@ -66,6 +66,7 @@ export interface HostApi {
    * applied when a new agent doesn't specify them explicitly, absent when the host configures
    * no explicit default (the adapter falls back internally);
    * attachedSessions = count of currently attached sessions (those with a live agent);
+   * home = the host account home directory (Web display abbreviation on POSIX);
    * canOpenPath = whether this deployment can hand a path to a user-visible native desktop.
    */
   describe(request: RpcRequest<{}>): Promise<RpcResponse<{
@@ -74,6 +75,7 @@ export interface HostApi {
     provider?: string
     model?: string
     attachedSessions: number
+    home: string
     canOpenPath: boolean
   }>>
 
@@ -114,8 +116,9 @@ export interface HostApi {
    * click). The read is bounded server-side: text previews carry only the
    * UTF-8 head, images are base64-encoded whole up to a size bound, and
    * anything else (or an unreadable/irregular target) reports `binary` or
-   * fails with `file-unreadable`. Privileged: loopback-only on the browser
-   * carrier, same class as the settings/credentials planes.
+   * fails with `file-unreadable`. The browser carrier treats this as a
+   * privileged method: loopback reaches it directly, while a trusted-host
+   * deployment must authenticate callers before the RPC bridge.
    */
   readFile(
     request: RpcRequest<{ path: string }>,

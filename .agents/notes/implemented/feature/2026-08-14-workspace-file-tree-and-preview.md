@@ -18,9 +18,9 @@ The web GUI shows conversations and tool output but no view of the workspace's f
 
 In `BrowseDirectoryPicker`, files ride their own `maxEntries + 1` streamed window beside the directory window, under the same discipline (name-sorted head, O(maxEntries) memory, binary insertion with O(1) full-window tail rejection, hidden = POSIX dot convention). Separate windows mean a file-heavy level cannot evict directory rows and vice versa; each group reports its own cut (`truncated` / `filesTruncated`). The file window takes only rows the dirent already proves are regular files: following a file symlink would add a stat probe per candidate to every listing, so symlinked files stay absent (directory symlinks keep the existing follow-for-enterability probe).
 
-### Preview is a gateway read on HostApi, loopback-privileged
+### Preview is a privileged gateway read on HostApi
 
-`host.readFile` lives on `HostApi` in the gateway, not on the picker capability: reading a file for display is not a directory-picking interaction, and the preview must not change behavior with the composed picker backend. It is also not `ctx.fs` — the same authority-domain ruling the picker seam recorded; the model's confinement stack must never alter GUI behavior. The read is bounded where the complete result is known, server-side: a UTF-8 text head of 256 KiB with `truncated` marking the cut, an extension-recognized image base64-encoded whole up to 8 MiB with its `mime`, and everything else — a NUL in the head, an oversized image — declined as `kind: 'binary'` with no content, which the client answers with a `host.openPath` system-open fallback. A path that is not fully qualified (the same fence as the browse listing: no wire value may resolve against the host cwd or, on Windows, its current drive), unreadable, or not a regular file fails with the new `file-unreadable` code; an abort maps to `cancelled`. The method joins `PRIVILEGED_METHODS` in dsh-client-connection: an arbitrary host-filesystem content read is at least as sensitive as the settings/credentials planes beside it, so it stays loopback-only and a declared `trustedHosts` authority never reaches it.
+`host.readFile` lives on `HostApi` in the gateway, not on the picker capability: reading a file for display is not a directory-picking interaction, and the preview must not change behavior with the composed picker backend. It is also not `ctx.fs` — the same authority-domain ruling the picker seam recorded; the model's confinement stack must never alter GUI behavior. The read is bounded where the complete result is known, server-side: a UTF-8 text head of 256 KiB with `truncated` marking the cut, an extension-recognized image base64-encoded whole up to 8 MiB with its `mime`, and everything else — a NUL in the head, an oversized image — declined as `kind: 'binary'` with no content, which the client answers with a `host.openPath` system-open fallback. A path that is not fully qualified (the same fence as the browse listing: no wire value may resolve against the host cwd or, on Windows, its current drive), unreadable, or not a regular file fails with the new `file-unreadable` code; an abort maps to `cancelled`. The method joins `PRIVILEGED_METHODS` in dsh-client-connection: an arbitrary host-filesystem content read is at least as sensitive as the settings/credentials planes beside it, so loopback reaches it directly while a declared `trustedHosts` authority requires deployment authentication before the RPC bridge.
 
 ### The sidebar band and the panel
 
@@ -38,7 +38,7 @@ ui-sidebar declares one new `single` root-scope hole, `sidebar.filetree` — a w
 
 **A new picker capability kind for file-capable browsing.** Rejected: the union discriminates operator interaction shapes, and browsing-with-files is the same interaction as browsing; a new kind would force a composition to choose between the picker dialog and the file tree.
 
-**Serving previews from a static file route instead of an RPC.** Rejected: a GET route would sit outside the `/api` unary path where the per-method privileged set and request schemas live; the RPC rides the existing carrier, validation, abort propagation, and loopback pinning unchanged.
+**Serving previews from a static file route instead of an RPC.** Rejected: a GET route would sit outside the `/api` unary path where the per-method privileged set and request schemas live; the RPC rides the existing carrier, validation, abort propagation, and privileged-method trust policy unchanged.
 
 **Truncating previews client-side.** Rejected by the standing bounds rule: limits apply where the complete result is known, and shipping an unbounded file over the wire to cut it in the browser is exactly the hole that rule names.
 
@@ -51,7 +51,7 @@ ui-sidebar declares one new `single` root-scope hole, `sidebar.filetree` — a w
 - The wire gains one optional request field, two optional listing fields, the `host.readFile` method, and the `file-unreadable` error code; every addition is optional or new, so no existing client or backend revalidates.
 - The picker dialog's contract is frozen through the change — the additive option means directory-picking consumers cannot observe the extension.
 - Under the native picker the tree shows a retriable error rather than content, on the very deployments the auto chooser targets by default; the listing-decoupling follow-up owns the fix.
-- `host.readFile` stays loopback: a trusted non-loopback deployment lists levels but cannot preview, which is the intended posture until an authentication layer exists.
+- `host.readFile` uses the privileged-method trust policy: loopback reaches it directly, while a declared `trustedHosts` authority reaches it only under the deployment's authentication layer.
 
 ## Testing
 

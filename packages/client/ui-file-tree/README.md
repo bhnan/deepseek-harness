@@ -21,7 +21,7 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 - **Listing requires the `browse` directory-picker capability** — under the `native` backend `host.listDirectory` answers `directory-picker-unavailable` and the panel shows its retriable error row; the [`-auto` chooser](../../host/directory-picker-auto/README.md) resolves `native` on desktop loopback deployments, so the default desktop composition hits exactly this until listing decouples from the picking seam.
-- **`host.readFile` is loopback-privileged** ([dsh-client-connection](../connection/README.md)) — a trusted non-loopback deployment lists levels, but every preview read is refused.
+- **Remote preview inherits deployment authentication** — [`host.readFile`](../connection/README.md) is privileged because it reads arbitrary Host files; loopback reaches it directly, while a `trustedHosts` deployment must authenticate callers before the RPC bridge.
 - **Per-level 1000-entry bound** — the backend's `maxEntries` window cuts directories and files as separate windows; the panel states the truncation and offers no paging.
 - **No symlinked-file rows** — the `files` window reports regular files only, so a file behind a symlink never appears (directories keep the picker's follow-for-enterability rule).
 - **No persisted expansion state** — expansion, cached levels, and the collapse toggle reset on remount and on every root change.

@@ -7,8 +7,9 @@ import { SidebarRoot } from './SidebarRoot.tsx'
 import { en, zh, type SidebarKey } from './locales.ts'
 
 export type {
-  SidebarFileTreeOwnerProps, SidebarFooterActionOwnerProps, SidebarRootComponentProps,
-  SidebarRootInjected, SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
+  SidebarBrandMarkOwnerProps, SidebarBrandNameOwnerProps, SidebarFooterActionOwnerProps,
+  SidebarFileTreeOwnerProps, SidebarRootComponentProps, SidebarRootInjected,
+  SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
 } from './contract/slots.ts'
 export type { SidebarKey } from './locales.ts'
 
@@ -45,6 +46,8 @@ export function apply(ctx: ClientContext): void {
       // region (header, search, session list, workspace dialogs), ui-settings
       // registers the foot trigger + settings panel.
       children: {
+        'sidebar.brand.mark': { kind: 'single', scope: 'root' },
+        'sidebar.brand.name': { kind: 'single', scope: 'root' },
         'sidebar.workspaces': { kind: 'single', scope: 'root' },
         'sidebar.filetree': { kind: 'single', scope: 'root' },
         'sidebar.settings': { kind: 'single', scope: 'root' },

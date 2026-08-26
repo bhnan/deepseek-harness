@@ -79,9 +79,12 @@ describe('connection client apply', () => {
     expect(handle.isLoopback).toBe(true)
   })
 
-  it('reports non-loopback page authority through the connection handle', async () => {
+  it('treats any page authority as loopback for the connection handle', async () => {
     ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '' }
-    expect((await mount()).isLoopback).toBe(false)
+    // Privileged server access is decided by the host browser-trust fence
+    // (loopback or declared trustedHosts) before the client mounts; the page
+    // authority no longer gates the settings/credentials mirror.
+    expect((await mount()).isLoopback).toBe(true)
   })
 
   it('start() hands out one loop, rejects a second consumer, and stop() aborts the streams', async () => {
