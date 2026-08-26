@@ -6,6 +6,7 @@ This group contains prototypes and internal-only Cordis plugins that use the rep
 
 | Package | Role | ctx key |
 |---|---|---|
+| `auth-basic/` | Basic HTTP authentication wrapper over the current Web server's raw Node listener | — |
 | `agent-team/` | Implicit-root Agent Teams roster, durable peer mailbox, shared task DAG, and runtime coordination | `ctx.agentTeams` |
 | `tool-agent-team/` | Scoped model-facing Agent Teams tools and collaboration guidance | — |
 

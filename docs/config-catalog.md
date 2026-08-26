@@ -617,6 +617,33 @@ export interface Config {
 
 Source: [`packages/experimental/agent-team/src/types.ts:125`](../packages/experimental/agent-team/src/types.ts)
 
+<a id="deepseek-aidsh-experimental-auth-basic"></a>
+
+## `@deepseek-ai/dsh-experimental-auth-basic`
+
+Requires: `webServer`
+
+```ts config-catalog
+/** Basic Web authentication configuration. */
+export interface Config extends AuthSettings {}
+
+/** Login and session settings consumed by {@link AuthGate}. */
+export interface AuthSettings {
+  /** Login name accepted by the form and JSON endpoint. */
+  username: string
+  /** Login password accepted by the form and JSON endpoint. */
+  password: string
+  /** HMAC key for the session cookie; omit only to rotate sessions on every process start. */
+  sessionSecret?: string
+  /** Session lifetime in seconds. Defaults to one day. */
+  sessionMaxAge?: number
+  /** Login-page title. Defaults to DeepSeek Harness. */
+  realm?: string
+}
+```
+
+Source: [`packages/experimental/auth-basic/src/index.ts:32`](../packages/experimental/auth-basic/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 
 ## `@deepseek-ai/dsh-experimental-tool-agent-team`

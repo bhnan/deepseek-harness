@@ -6,6 +6,7 @@
 
 | 包 | 职责 | ctx key |
 |---|---|---|
+| `auth-basic/` | 当前 Web server 原始 Node listener 上的基础 HTTP 鉴权包装层 | — |
 | `agent-team/` | 隐式 root Agent Teams roster、持久 peer mailbox、共享任务 DAG 与运行时协调 | `ctx.agentTeams` |
 | `tool-agent-team/` | 按 Agent 作用域提供的 Agent Teams 模型工具与协作指引 | — |
 

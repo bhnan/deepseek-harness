@@ -1,0 +1,14 @@
+# The experimental basic-auth bundle must appear before dsh-web-app in a
+# profile's bundle list so it wraps the Node listener before the Web SPA
+# fallback receives requests. Credentials are evaluated from the profile
+# environment; no deployable value belongs in this package.
+
+- insert:
+    - id: auth-basic
+      name: '@deepseek-ai/dsh-experimental-auth-basic'
+      inject:
+        - webServer
+      config:
+        username: !!js process.env.DSH_AUTH_BASIC_USERNAME
+        password: !!js process.env.DSH_AUTH_BASIC_PASSWORD
+        sessionSecret: !!js process.env.DSH_AUTH_BASIC_SESSION_SECRET
