@@ -56,15 +56,27 @@ def _spot_quotes(date: str) -> dict[str, dict]:
 
 
 def resolve_name(name: str, date: str | None = None) -> str:
-    """名称 → 代码（查询当日精简行情表）。date 缺省用最近有数据交易日。"""
+    """名称 → 代码：先查当日精简行情（quotes_subset），未命中再查全市场 a_spot。"""
     from .dates import latest
 
     d = date or latest()
     if not d:
         raise DataError("no_data")
+    target = name.strip()
+    # 1) 精简行情
     for code, info in _spot_quotes(d).items():
-        if info.get("名称") == name.strip():
+        if info.get("名称") == target:
             return code
+    # 2) 全市场 a_spot 回退
+    try:
+        from ._util import read_asset
+
+        a = read_asset("a_spot", d)
+        for r in a["data"].get("stocks", []):
+            if r.get("名称") == target:
+                return r["代码"]
+    except DataError:
+        pass
     raise ParamError(f"unknown_name: {name}")
 
 
