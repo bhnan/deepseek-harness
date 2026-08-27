@@ -1,5 +1,7 @@
 # GitHub Platform Installer Implementation Plan
 
+English | [中文](2026-08-27-github-platform-installer.zh.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build and publish a private GitHub Packages npm installer that selects a macOS arm64 or Linux x64 DeepSeek Harness runtime from one `npm install -g @bhnan/dsh-filetree` command.

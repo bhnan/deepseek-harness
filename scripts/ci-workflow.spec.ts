@@ -8,6 +8,23 @@ const runnerPrivatePnpmDestination = '${{ runner.temp }}/setup-pnpm'
 const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js'
 
 describe('CI workflow', () => {
+  it('defines the manual private file-tree package workflow for both target architectures', () => {
+    const workflow = loadWorkflow('.github/workflows/filetree-package.yml')
+    expect(workflow).toMatchObject({
+      name: 'File-tree installer packages',
+      permissions: { contents: 'read' },
+    })
+    const dispatch = workflowEvent(workflow, 'workflow_dispatch')
+    expect(dispatch).toMatchObject({ inputs: { publish: { type: 'boolean', default: false } } })
+    const pack = workflowJob(workflow, 'pack')
+    expect(pack.strategy).toMatchObject({ matrix: { include: expect.arrayContaining([
+      { target: 'macos-arm64', runner: 'macos-14' },
+      { target: 'linux-x64', runner: 'ubuntu-24.04' },
+    ]) } })
+    const publish = workflowJob(workflow, 'publish')
+    expect(publish).toMatchObject({ needs: 'pack', permissions: { packages: 'write' } })
+  })
+
   it('isolates every pnpm action setup destination per runner', () => {
     const files = ['.github/workflows/ci.yml', '.github/workflows/ci-master.yml']
     const setups: Array<{ jobName: string; step: unknown }> = []

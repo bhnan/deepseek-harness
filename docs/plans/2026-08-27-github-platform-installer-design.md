@@ -1,5 +1,7 @@
 # GitHub Platform Installer Design
 
+English | [中文](2026-08-27-github-platform-installer-design.zh.md)
+
 ## Goal
 
 Publish a private GitHub Packages npm installer that users install with `npm install -g @bhnan/dsh-filetree`; the installer selects a macOS Apple Silicon or Linux x64 runtime carrying the current DeepSeek Harness file-tree changes.
@@ -33,3 +35,9 @@ The published package README documents the scoped `.npmrc` mapping and `read:pac
 ## Verification
 
 The assembly script has unit coverage for package names, version alignment, `os`/`cpu` selectors, payload completeness, and launcher paths. The workflow performs clean packed-install smoke tests on both target runners. The server at `123.56.81.22` is verified separately with read-only commands after publication: Ubuntu 24.04, x86_64, Node 24.19.0, npm 11.17.0, pnpm 11.22.0, and approximately 3.58 GB RAM were observed; the validation must not replace or restart the existing service.
+
+## Implementation inputs
+
+- DSH release tarballs
+- vendored Cordis tarballs
+- Landlock entry tarball
