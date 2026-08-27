@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // 教师工作手册 docx → 教学日历导入脚本
 // 用法: node scripts/import-docx-schedule.mjs <课表.docx> [--api http://127.0.0.1:8787] [--dry-run]
-//
+//       可选参数化目标学期（缺省沿用内置 2025 春季映射，向后兼容）:
+//         --semester-name="2026年寒假" --semester-start=2026-01-19 --semester-end=2026-02-28
 // 流程：
 //   1. 调 python3 scripts/parse_docx_schedule.py 解析 docx → 12 周课表 JSON
-//   2. 按映射规则生成：2025春季学期 + 固定排课（含单双周/指定周 week 字段）+ 授课内容
+//   2. 按映射规则生成：目标学期 + 固定排课（含单双周/指定周 week 字段）+ 授课内容
 //   3. 通过 API 写入（可撤销：每次操作都有 undo 快照）
 //
 // 映射规则：
@@ -63,13 +64,27 @@ async function req(method, p, body) {
 }
 
 // ---------- 3. 分析课表，生成排课计划 ----------
+// 目标学期：CLI/命令行可参数化；缺省值与历史行为逐字一致（2025 春季）
+// 严格取值：命中 flag 却取不到值 → 报错退出（绝不静默回退默认学期，防写错目标）
+const argOf = (flag, dflt) => {
+  const i = args.findIndex((a) => a === flag || a.startsWith(flag + '='));
+  if (i === -1) return dflt;
+  const inline = args[i].includes('=') ? args[i].slice(args[i].indexOf('=') + 1) : '';
+  if (inline !== '') return inline;
+  const nxt = args[i + 1];
+  if (nxt !== undefined && nxt !== '' && !nxt.startsWith('--')) return nxt;
+  console.error(`✘ 参数 ${flag} 缺少取值（支持 --flag=value 或 --flag value）`);
+  process.exit(1);
+};
 const semester = {
-  name: '2025年春季第二学期',
-  start_date: '2025-02-10',
-  end_date: '2025-07-13', // 第 22 周周日（旧课表最后一周）
+  name: argOf('--semester-name', '2025年春季第二学期'),
+  start_date: argOf('--semester-start', '2025-02-10'),
+  end_date: argOf('--semester-end', '2025-07-13'), // 第 22 周周日（旧课表最后一周）
 };
 const WDS = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-const TOTAL_WEEKS = 22; // 2025春季学期总周数（2.10 ~ 7.13）
+// 总周数复用日历引擎口径（默认日期下 = 22，与旧硬编码恒等）
+const { semesterTotalWeeks } = await import('../src/engine/week.js');
+const TOTAL_WEEKS = semesterTotalWeeks(semester);
 // 学期全范围单/双周（用于推导 week 字段；旧课表只覆盖 11-22 周，故课服不会命中 'odd'/'even'，精确走周数组）
 const SEM_ODD_WEEKS = Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).filter((w) => w % 2 === 1);
 const SEM_EVEN_WEEKS = Array.from({ length: TOTAL_WEEKS }, (_, i) => i + 1).filter((w) => w % 2 === 0);
