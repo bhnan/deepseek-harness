@@ -59,7 +59,7 @@ jobs:
           pnpm --dir native/landlock-run/packages/entry pack --pack-destination "$PWD/dist/npm-landlock"
       - name: Assemble installer staging
         env:
-          PRIVATE_VERSION: ${{ inputs.private_version }}
+          PRIVATE_VERSION: ${{ inputs.private_version || '0.1' }}
         run: |
           source_version=$(node -p "require('./package.json').version")
           installer_version="${source_version}-bhn.${PRIVATE_VERSION}"
