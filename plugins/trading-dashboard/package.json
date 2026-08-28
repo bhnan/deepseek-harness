@@ -1,0 +1,27 @@
+{
+  "name": "@bhn/trading-dashboard",
+  "version": "0.1.0",
+  "description": "A 股交易看板插件（M0 垂直切片）：host 数据路由 + client 看板入口与页面",
+  "main": "src/host.js",
+  "exports": {
+    ".": "./src/host.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

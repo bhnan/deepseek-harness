@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# 构建产物（由 build.mjs 重建，hotreload 自动维护）
+client.js
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统
+.DS_Store
+._*build.tmp.mjs
