@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-27-private-filetree-installer.md
-2026-08-27-private-filetree-installer.md: 5694c0a14ea6982d4da8fb4fdcabecad9441af3b
-2026-08-27-private-filetree-installer.zh.md: 422d72b735a0b3408077cce373c66a1522c5118c
+2026-08-27-private-filetree-installer.md: dddcb94116e947a0ffd4bda55011ab3cdb8484ec
+2026-08-27-private-filetree-installer.zh.md: 31b49814fa6834090e04ffbae2c58763276879c2
