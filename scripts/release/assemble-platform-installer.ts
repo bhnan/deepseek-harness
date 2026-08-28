@@ -190,7 +190,7 @@ const target = process.platform === 'darwin' && process.arch === 'arm64'
     ? '${platformPackageName(namespace, 'linux-x64')}'
     : undefined
 if (target === undefined) throw new Error('Unsupported host platform. Supported targets are macOS arm64 and Linux x64.')
-let packageRoot: string
+let packageRoot
 try {
   packageRoot = dirname(require.resolve(target + '/package.json'))
 } catch {

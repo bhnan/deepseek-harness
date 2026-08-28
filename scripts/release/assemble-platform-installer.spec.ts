@@ -89,6 +89,8 @@ describe('platform installer manifests', () => {
     expect(entryLauncher).toContain('@bhnan/dsh-filetree-linux-x64')
     expect(entryLauncher).toMatch(/^#!\/usr\/bin\/env node\n/)
     expect(platformLauncher).toMatch(/^#!\/usr\/bin\/env node\n/)
+    expect(() => execFileSync(process.execPath, ['--check', join(out, 'entry', 'bin', 'dsh.mjs')])).not.toThrow()
+    expect(() => execFileSync(process.execPath, ['--check', join(out, 'linux-x64', 'bin', 'dsh.mjs')])).not.toThrow()
   })
 })
 
