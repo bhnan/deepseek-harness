@@ -1,0 +1,24 @@
+{
+	default_sni 123.56.81.22
+
+	servers :443 {
+		protocols h1
+	}
+}
+
+123.56.81.22 {
+	tls internal
+
+	header / {
+		-Alt-Svc
+	}
+
+	encode zstd gzip
+
+	redir /portfolio /portfolio/
+	redir /calendar /calendar/
+
+	handle {
+		reverse_proxy 127.0.0.1:3080
+	}
+}

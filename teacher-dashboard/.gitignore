@@ -1,0 +1,4 @@
+# harness 根 .gitignore 的全局 lib/ 规则会吞掉插件与 CLI 的源码目录，此处显式豁免
+!dsh-plugins/teacher-tools/lib/
+!dsh-plugins/apps-proxy/lib/
+!teacher-calendar/cli/lib/

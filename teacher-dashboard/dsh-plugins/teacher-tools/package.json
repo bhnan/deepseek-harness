@@ -1,0 +1,17 @@
+{
+  "name": "@bhn/teacher-tools",
+  "version": "0.1.0",
+  "description": "DSH 原生工具：把教师工作台 CLI（tc）8 个高频命令注册为 Agent 可调用工具（仅转发，逻辑唯一来源是 tc.mjs）",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "license": "UNLICENSED"
+}

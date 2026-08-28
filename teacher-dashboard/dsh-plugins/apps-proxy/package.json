@@ -1,0 +1,13 @@
+{
+  "name": "@bhn/apps-proxy",
+  "version": "0.1.0",
+  "description": "DSH 反向代理：/calendar → 教师日历(8787)，/portfolio → 学生档案(8797)",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "UNLICENSED"
+}
