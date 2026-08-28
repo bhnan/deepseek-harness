@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-发布流程构建一个平台无关的 `@bhnan/dsh-filetree` 包，以及两个可选的平台包：`@bhnan/dsh-filetree-macos-arm64` 和 `@bhnan/dsh-filetree-linux-x64`。每个平台包携带打包后的 DSH、vendored Cordis 与 Landlock tarball，并在 npm `postinstall` 中组装私有运行时。入口和平台 launcher 带有 Node shebang，确保 npm 生成的 bin 链接可以直接执行。入口 launcher 选择平台包，再转交给组装后的运行时。GitHub Actions 在上传两个目标之前，会把入口和平台 tarball 安装到干净 consumer，并执行两个 launcher 与 npm 生成的 `dsh` bin。发布由手动输入控制，并使用具备 `packages: write` 权限的 `GITHUB_TOKEN`。
+发布流程构建一个平台无关的 `@bhnan/dsh-filetree` 包，以及两个可选的平台包：`@bhnan/dsh-filetree-macos-arm64` 和 `@bhnan/dsh-filetree-linux-x64`。每个平台包携带打包后的 DSH、vendored Cordis 与 Landlock tarball，并在 npm `postinstall` 中组装私有运行时。三个安装包采用 DSH 源版本加 `bhn` 构建修订号，例如 `0.1.1-rc.2-bhn.0.1`；内嵌的 `@deepseek-ai/dsh` payload 保留源版本。入口和平台 launcher 带有 Node shebang，确保 npm 生成的 bin 链接可以直接执行。入口 launcher 选择平台包，再转交给组装后的运行时。GitHub Actions 在上传两个目标之前，会把入口和平台 tarball 安装到干净 consumer，并执行两个 launcher 与 npm 生成的 `dsh` bin。发布由手动输入控制，并使用具备 `packages: write` 权限的 `GITHUB_TOKEN`。
 
 ## Alternatives considered
 
@@ -18,6 +18,8 @@ Status: implemented
 
 **发布一个通用包。** 通用包会包含互不兼容的原生 payload，也无法让 npm 阻止不支持的操作系统或 CPU 安装。
 
+**私有安装包复用官方 DSH 版本。** 相同的包版本无法区分产物来自官方源码发布还是私有文件树构建，也妨碍两个身份独立发布。
+
 ## Consequences
 
-平台包因携带打包依赖而更大，安装时会从这些 tarball 执行一次本地 npm install。使用者需要带有 `read:packages` 的 classic GitHub token；维护者显式开启 workflow 发布。支持的主机范围明确限制为 macOS arm64 与 Linux x64。
+平台包因携带打包依赖而更大，安装时会从这些 tarball 执行一次本地 npm install。使用者需要带有 `read:packages` 的 classic GitHub token；维护者显式开启 workflow 发布，并为同一源版本的每次发布递增私有修订号。支持的主机范围明确限制为 macOS arm64 与 Linux x64。

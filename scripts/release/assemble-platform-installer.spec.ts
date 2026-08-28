@@ -11,6 +11,9 @@ const payload: PackedInstallerInput[] = [
   { name: '@deepseek-ai/node-addon-landlock-run', version: '0.1.1', filename: 'deepseek-ai-node-addon-landlock-run-0.1.1.tgz' },
 ]
 
+const sourceVersion = '0.1.1-rc.2'
+const installerVersion = '0.1.1-rc.2-bhn.0.1'
+
 const roots: string[] = []
 
 function packFixture(root: string, name: string, version: string): string {
@@ -26,23 +29,24 @@ describe('platform installer manifests', () => {
   it('creates an entry package and a platform package with matching versions', () => {
     const manifests = createInstallerManifests({
       namespace: 'bhnan',
-      version: '0.1.1-rc.2',
+      version: installerVersion,
+      sourceVersion,
       platform: 'macos-arm64',
       payload,
     })
 
     expect(manifests.entry).toMatchObject({
       name: '@bhnan/dsh-filetree',
-      version: '0.1.1-rc.2',
+      version: installerVersion,
       bin: { dsh: 'bin/dsh.mjs' },
       optionalDependencies: {
-        '@bhnan/dsh-filetree-macos-arm64': '0.1.1-rc.2',
-        '@bhnan/dsh-filetree-linux-x64': '0.1.1-rc.2',
+        '@bhnan/dsh-filetree-macos-arm64': installerVersion,
+        '@bhnan/dsh-filetree-linux-x64': installerVersion,
       },
     })
     expect(manifests.platform).toMatchObject({
       name: '@bhnan/dsh-filetree-macos-arm64',
-      version: '0.1.1-rc.2',
+      version: installerVersion,
       os: ['darwin'],
       cpu: ['arm64'],
       bin: { dsh: 'bin/dsh.mjs' },
@@ -52,13 +56,22 @@ describe('platform installer manifests', () => {
   })
 
   it('rejects unsupported platforms, invalid scopes, version drift, and missing dsh entry', () => {
-    expect(() => createInstallerManifests({ namespace: 'Bhnan', version: '0.1.1-rc.2', platform: 'macos-arm64', payload })).toThrow(/lowercase/)
-    expect(() => createInstallerManifests({ namespace: 'bhnan', version: 'latest', platform: 'macos-arm64', payload })).toThrow(/version/)
-    expect(() => createInstallerManifests({ namespace: 'bhnan', version: '0.1.1-rc.2', platform: 'windows-x64', payload })).toThrow(/platform/)
-    expect(() => createInstallerManifests({ namespace: 'bhnan', version: '0.1.1-rc.2', platform: 'macos-arm64', payload: payload.slice(1) })).toThrow(/@deepseek-ai\/dsh/)
+    expect(() => createInstallerManifests({ namespace: 'Bhnan', version: installerVersion, sourceVersion, platform: 'macos-arm64', payload })).toThrow(/lowercase/)
+    expect(() => createInstallerManifests({ namespace: 'bhnan', version: 'latest', sourceVersion, platform: 'macos-arm64', payload })).toThrow(/version/)
+    expect(() => createInstallerManifests({ namespace: 'bhnan', version: installerVersion, sourceVersion: 'latest', platform: 'macos-arm64', payload })).toThrow(/version/)
+    expect(() => createInstallerManifests({ namespace: 'bhnan', version: installerVersion, sourceVersion, platform: 'windows-x64', payload })).toThrow(/platform/)
+    expect(() => createInstallerManifests({ namespace: 'bhnan', version: installerVersion, sourceVersion, platform: 'macos-arm64', payload: payload.slice(1) })).toThrow(/@deepseek-ai\/dsh/)
     expect(() => createInstallerManifests({
       namespace: 'bhnan',
-      version: '0.1.1-rc.2',
+      version: installerVersion,
+      sourceVersion: '0.1.1-rc.3',
+      platform: 'macos-arm64',
+      payload,
+    })).toThrow(/source version/)
+    expect(() => createInstallerManifests({
+      namespace: 'bhnan',
+      version: installerVersion,
+      sourceVersion,
       platform: 'macos-arm64',
       payload: [...payload, payload[0]!],
     })).toThrow(/duplicate/)
@@ -76,12 +89,14 @@ describe('platform installer manifests', () => {
     packFixture(landlock, '@deepseek-ai/node-addon-landlock-run', '0.1.1')
     const out = join(root, 'out')
 
-    assemblePlatformInstaller({ namespace: 'bhnan', version: '0.1.1-rc.2', dsh, vendor, landlock, out })
+    assemblePlatformInstaller({ namespace: 'bhnan', version: installerVersion, sourceVersion, dsh, vendor, landlock, out })
 
     const entry = JSON.parse(readFileSync(join(out, 'entry', 'package.json'), 'utf8')) as Record<string, unknown>
     const mac = JSON.parse(readFileSync(join(out, 'macos-arm64', 'package.json'), 'utf8')) as Record<string, unknown>
     expect(entry.name).toBe('@bhnan/dsh-filetree')
+    expect(entry.version).toBe(installerVersion)
     expect(mac.name).toBe('@bhnan/dsh-filetree-macos-arm64')
+    expect(mac.version).toBe(installerVersion)
     expect(readFileSync(join(out, 'macos-arm64', 'payload', 'index.json'), 'utf8')).toContain('@deepseek-ai/dsh')
     expect(readFileSync(join(out, 'macos-arm64', 'scripts', 'postinstall.mjs'), 'utf8')).toContain("['install', '--prefix'")
     const entryLauncher = readFileSync(join(out, 'entry', 'bin', 'dsh.mjs'), 'utf8')
