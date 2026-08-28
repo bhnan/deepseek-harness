@@ -115,5 +115,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for tarball in dist/filetree-tarballs/*.tgz; do
-            npm publish --access restricted --registry https://npm.pkg.github.com "$tarball"
+            npm publish --access restricted --tag bhn --registry https://npm.pkg.github.com "$tarball"
           done
