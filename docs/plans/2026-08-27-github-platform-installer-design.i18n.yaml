@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/plans/2026-08-27-github-platform-installer-design.md
-2026-08-27-github-platform-installer-design.md: b0988b24bb3c842c71c663eecdf8a61e831a4d98
-2026-08-27-github-platform-installer-design.zh.md: 3ee7262ddf2b5bb3bb25a16ee63578eaa0288696
+2026-08-27-github-platform-installer-design.md: f6ad08ecfd8245de1c1e25dfbc4f741b273ded2d
+2026-08-27-github-platform-installer-design.zh.md: 32773a6cc3da70953b1364b22694a9c62e22f3d2

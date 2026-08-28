@@ -19,8 +19,10 @@ export interface PackedInstallerInput extends PackedIdentity {
 export interface InstallerManifestOptions {
   /** GitHub user or organization that owns the npm scope, without `@`. */
   readonly namespace: string
-  /** Shared release version of the DSH family. */
+  /** Version published for the private installer packages. */
   readonly version: string
+  /** Version of the official DSH payload embedded in the installer. */
+  readonly sourceVersion: string
   /** Target platform package to generate. */
   readonly platform: string
   /** Tarballs that the platform runtime installs. */
@@ -76,6 +78,7 @@ function platformPackageName(namespace: string, platform: InstallerPlatform): st
 export function createInstallerManifests(options: InstallerManifestOptions): InstallerManifests {
   validateNamespace(options.namespace)
   validateVersion(options.version)
+  validateVersion(options.sourceVersion)
   if (!Object.hasOwn(PLATFORMS, options.platform)) {
     throw new Error(`installer platform ${JSON.stringify(options.platform)} is unsupported`)
   }
@@ -94,8 +97,8 @@ export function createInstallerManifests(options: InstallerManifestOptions): Ins
   }
   const dsh = options.payload.find(input => input.name === '@deepseek-ai/dsh')
   if (dsh === undefined) throw new Error('installer payload must contain @deepseek-ai/dsh')
-  if (dsh.version !== options.version) {
-    throw new Error(`installer DSH version ${dsh.version} does not match installer version ${options.version}`)
+  if (dsh.version !== options.sourceVersion) {
+    throw new Error(`installer DSH version ${dsh.version} does not match source version ${options.sourceVersion}`)
   }
 
   const platformName = platformPackageName(options.namespace, validatedPlatform)
@@ -243,6 +246,7 @@ function writeStagingPackage(
 export function assemblePlatformInstaller(options: {
   namespace: string
   version: string
+  sourceVersion: string
   dsh: string
   vendor: string
   landlock: string
@@ -251,8 +255,20 @@ export function assemblePlatformInstaller(options: {
   const root = resolve(options.out)
   const payloadFiles = readPayloadDirectories([resolve(options.dsh), resolve(options.vendor), resolve(options.landlock)])
   const payload = payloadFiles.map(entry => entry.input)
-  const entryManifests = createInstallerManifests({ namespace: options.namespace, version: options.version, platform: 'macos-arm64', payload })
-  const linuxManifests = createInstallerManifests({ namespace: options.namespace, version: options.version, platform: 'linux-x64', payload })
+  const entryManifests = createInstallerManifests({
+    namespace: options.namespace,
+    version: options.version,
+    sourceVersion: options.sourceVersion,
+    platform: 'macos-arm64',
+    payload,
+  })
+  const linuxManifests = createInstallerManifests({
+    namespace: options.namespace,
+    version: options.version,
+    sourceVersion: options.sourceVersion,
+    platform: 'linux-x64',
+    payload,
+  })
   rmSync(root, { recursive: true, force: true })
   mkdirSync(root, { recursive: true })
   const entryReadme = `# @${options.namespace}/${PACKAGE_SUFFIX.entry}\n\nInstall the DeepSeek Harness file-tree runtime on macOS Apple Silicon or Linux x64. Configure @${options.namespace}:registry=https://npm.pkg.github.com and a GitHub token with read:packages before installing.\n`
@@ -285,16 +301,16 @@ export function assemblePlatformInstaller(options: {
 function main(): void {
   const { values } = parseArgs({
     options: {
-      namespace: { type: 'string' }, version: { type: 'string' }, dsh: { type: 'string' },
+      namespace: { type: 'string' }, version: { type: 'string' }, 'source-version': { type: 'string' }, dsh: { type: 'string' },
       vendor: { type: 'string' }, landlock: { type: 'string' }, out: { type: 'string' },
     },
     allowPositionals: false,
   })
-  const required = ['namespace', 'version', 'dsh', 'vendor', 'landlock', 'out'] as const
+  const required = ['namespace', 'version', 'source-version', 'dsh', 'vendor', 'landlock', 'out'] as const
   for (const key of required) {
     if (values[key] === undefined) {
       throw new Error(
-        'usage: assemble-platform-installer.ts --namespace <name> --version <version> '
+        'usage: assemble-platform-installer.ts --namespace <name> --version <version> --source-version <version> '
         + '--dsh <dir> --vendor <dir> --landlock <dir> --out <dir>',
       )
     }
@@ -303,6 +319,7 @@ function main(): void {
   assemblePlatformInstaller({
     namespace: value('namespace'),
     version: value('version'),
+    sourceVersion: value('source-version'),
     dsh: value('dsh'),
     vendor: value('vendor'),
     landlock: value('landlock'),
