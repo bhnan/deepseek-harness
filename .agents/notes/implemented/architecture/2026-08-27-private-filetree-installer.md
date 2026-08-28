@@ -10,7 +10,7 @@ The file-tree runtime contains platform-sensitive native code and a large intern
 
 ## Decision
 
-The release workflow builds one platform-neutral `@bhnan/dsh-filetree` package and two optional platform packages: `@bhnan/dsh-filetree-macos-arm64` and `@bhnan/dsh-filetree-linux-x64`. Each platform package carries the packed DSH, vendored Cordis, and Landlock tarballs, then assembles a private runtime during npm `postinstall`. The entry and platform launchers carry Node shebangs so npm's generated bin links execute them directly. The entry launcher selects the platform package and delegates to the assembled runtime. GitHub Actions builds both targets; publication is a manual input and uses `GITHUB_TOKEN` with `packages: write`.
+The release workflow builds one platform-neutral `@bhnan/dsh-filetree` package and two optional platform packages: `@bhnan/dsh-filetree-macos-arm64` and `@bhnan/dsh-filetree-linux-x64`. Each platform package carries the packed DSH, vendored Cordis, and Landlock tarballs, then assembles a private runtime during npm `postinstall`. The entry and platform launchers carry Node shebangs so npm's generated bin links execute them directly. The entry launcher selects the platform package and delegates to the assembled runtime. GitHub Actions installs the packed entry and platform tarballs into a clean consumer and executes both launchers plus npm's generated `dsh` bin before uploading either target. Publication is a manual input and uses `GITHUB_TOKEN` with `packages: write`.
 
 ## Alternatives considered
 

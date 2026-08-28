@@ -59,6 +59,23 @@ jobs:
           mkdir -p dist/filetree-tarballs
           if [ "${{ matrix.target }}" = linux-x64 ]; then npm pack dist/filetree-installer/entry --pack-destination dist/filetree-tarballs; fi
           npm pack dist/filetree-installer/${{ matrix.target }} --pack-destination dist/filetree-tarballs
+      - name: Verify packed installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke="$RUNNER_TEMP/filetree-smoke"
+          consumer="$RUNNER_TEMP/filetree-consumer"
+          mkdir -p "$smoke" "$consumer"
+          npm pack dist/filetree-installer/entry --pack-destination "$smoke"
+          npm pack dist/filetree-installer/${{ matrix.target }} --pack-destination "$smoke"
+          entry_tarballs=("$smoke"/bhnan-dsh-filetree-[0-9]*.tgz)
+          platform_tarballs=("$smoke"/bhnan-dsh-filetree-${{ matrix.target }}-*.tgz)
+          test "${#entry_tarballs[@]}" -eq 1
+          test "${#platform_tarballs[@]}" -eq 1
+          npm install --prefix "$consumer" "${entry_tarballs[0]}" "${platform_tarballs[0]}" --no-audit --no-fund
+          "$consumer/node_modules/@bhnan/dsh-filetree/bin/dsh.mjs" --version
+          "$consumer/node_modules/@bhnan/dsh-filetree-${{ matrix.target }}/bin/dsh.mjs" --help
+          "$consumer/node_modules/.bin/dsh" --help
       - uses: actions/upload-artifact@v4
         with:
           name: filetree-${{ matrix.target }}

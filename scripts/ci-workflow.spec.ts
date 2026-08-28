@@ -17,10 +17,20 @@ describe('CI workflow', () => {
     const dispatch = workflowEvent(workflow, 'workflow_dispatch')
     expect(dispatch).toMatchObject({ inputs: { publish: { type: 'boolean', default: false } } })
     const pack = workflowJob(workflow, 'pack')
-    expect(pack.strategy).toMatchObject({ matrix: { include: expect.arrayContaining([
-      { target: 'macos-arm64', runner: 'macos-14' },
-      { target: 'linux-x64', runner: 'ubuntu-24.04' },
-    ]) } })
+    if (!isRecord(pack.strategy) || !isRecord(pack.strategy.matrix) || !Array.isArray(pack.strategy.matrix.include)) {
+      throw new TypeError('file-tree pack job must define a matrix include list')
+    }
+    expect(pack.strategy.matrix.include).toContainEqual({ target: 'macos-arm64', runner: 'macos-14' })
+    expect(pack.strategy.matrix.include).toContainEqual({ target: 'linux-x64', runner: 'ubuntu-24.04' })
+    if (!Array.isArray(pack.steps)) throw new TypeError('file-tree pack job must define steps')
+    const steps = pack.steps as unknown[]
+    const smoke: unknown = steps.find(step => isRecord(step) && step.name === 'Verify packed installer')
+    expect(smoke).toMatchObject({ shell: 'bash' })
+    if (!isRecord(smoke) || typeof smoke.run !== 'string') throw new TypeError('packed installer smoke must define a run script')
+    expect(smoke.run).toContain('npm install --prefix "$consumer"')
+    expect(smoke.run).toContain('node_modules/@bhnan/dsh-filetree/bin/dsh.mjs" --version')
+    expect(smoke.run).toContain('node_modules/@bhnan/dsh-filetree-${{ matrix.target }}/bin/dsh.mjs" --help')
+    expect(smoke.run).toContain('node_modules/.bin/dsh" --help')
     const publish = workflowJob(workflow, 'publish')
     expect(publish).toMatchObject({ needs: 'pack', permissions: { packages: 'write' } })
   })
