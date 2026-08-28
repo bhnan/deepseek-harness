@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-发布流程构建一个平台无关的 `@bhnan/dsh-filetree` 包，以及两个可选的平台包：`@bhnan/dsh-filetree-macos-arm64` 和 `@bhnan/dsh-filetree-linux-x64`。每个平台包携带打包后的 DSH、vendored Cordis 与 Landlock tarball，并在 npm `postinstall` 中组装私有运行时。入口 launcher 选择平台包，再转交给组装后的运行时。GitHub Actions 构建两个目标；发布由手动输入控制，并使用具备 `packages: write` 权限的 `GITHUB_TOKEN`。
+发布流程构建一个平台无关的 `@bhnan/dsh-filetree` 包，以及两个可选的平台包：`@bhnan/dsh-filetree-macos-arm64` 和 `@bhnan/dsh-filetree-linux-x64`。每个平台包携带打包后的 DSH、vendored Cordis 与 Landlock tarball，并在 npm `postinstall` 中组装私有运行时。入口和平台 launcher 带有 Node shebang，确保 npm 生成的 bin 链接可以直接执行。入口 launcher 选择平台包，再转交给组装后的运行时。GitHub Actions 在上传两个目标之前，会把入口和平台 tarball 安装到干净 consumer，并执行两个 launcher 与 npm 生成的 `dsh` bin。发布由手动输入控制，并使用具备 `packages: write` 权限的 `GITHUB_TOKEN`。
 
 ## Alternatives considered
 
