@@ -6,7 +6,7 @@
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
-import type { DirectoryListing, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing, FileContent, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
 
@@ -43,9 +43,10 @@ export interface IWorkspaces {
    * List one directory level through the Host's `browse` capability.
    * @param path - absolute directory to list; absent lists the Host home directory.
    * @param signal - aborts the wire request (and the Host's scan) when the caller supersedes it.
+   * @param options - `files: true` additionally reports the level's direct child regular files.
    * @returns the level's listing with breadcrumb ancestry.
    */
-  listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>
+  listDirectory(path?: string, signal?: AbortSignal, options?: { files?: boolean }): Promise<DirectoryListing>
   /**
    * Create one child directory through the Host's `browse` capability.
    * @param path - absolute existing parent directory.
@@ -53,6 +54,13 @@ export interface IWorkspaces {
    * @returns the created directory's absolute path.
    */
   createDirectory(path: string, name: string): Promise<string>
+  /**
+   * Read one regular file for in-app preview (bounded server-side).
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the bounded file content.
+   */
+  readFile(path: string, signal?: AbortSignal): Promise<FileContent>
   /**
    * Open a filesystem path with the Host operating system's default application.
    * @param path - absolute or host-resolvable path.

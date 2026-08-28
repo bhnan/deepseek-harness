@@ -141,4 +141,5 @@ export default class MyService extends Service {
 
 - [开发一个工具](./tool.zh.md) — 了解工具定义 DSL
 - [插件配置](./config.zh.md) — 让插件接受用户配置
+- [文件树运行时安装包](./filetree-installer.zh.md) — 安装私有平台包
 - [Cordis 框架教程](../../../cordis-tutorial/index.zh.md) — 底层的插件框架，在临时目录中动手构建，无需 API 密钥

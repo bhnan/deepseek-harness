@@ -1,8 +1,10 @@
 /** Behavior of the browse backend over a real temporary directory tree. */
 
+import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { promisify } from 'node:util'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { DirectoryPickerError } from '@deepseek-ai/dsh-host-directory-picker'
@@ -20,6 +22,8 @@ beforeAll(async () => {
   await mkdir(join(root, 'projects', 'harness'))
   await mkdir(join(root, '.hidden-dir'))
   await writeFile(join(root, 'notes.txt'), 'not a directory')
+  await writeFile(join(root, 'alpha.txt'), 'sorts before notes')
+  await writeFile(join(root, '.hidden-note'), 'dotfile')
   await symlink(join(root, 'projects'), join(root, 'linked'), 'junction')
   await symlink(join(root, 'gone'), join(root, 'broken'), 'junction')
   try {
@@ -55,6 +59,72 @@ describe('BrowseDirectoryPicker', () => {
     expect(listing.entries.every(entry => entry.path === join(root, entry.name))).toBe(true)
     // Well under the default bound: the complete level, not a cut one.
     expect(listing.truncated).toBe(false)
+    // The files window is opt-in: a plain listing carries neither field.
+    expect(listing.files).toBeUndefined()
+    expect(listing.filesTruncated).toBeUndefined()
+  })
+
+  it('reports direct child regular files on request: name-sorted, hidden-flagged, separated from directory rows', async () => {
+    const listing = await capability.list(root, undefined, { files: true })
+    // Regular files only: directories stay in entries, and a file behind a
+    // symlink (file-link, POSIX lanes) stays a picker-invisible row.
+    expect(listing.files!.map(file => file.name)).toEqual(['.hidden-note', 'alpha.txt', 'notes.txt'])
+    expect(listing.files!.map(file => file.hidden)).toEqual([true, false, false])
+    expect(listing.files!.every(file => file.path === join(root, file.name))).toBe(true)
+    expect(listing.filesTruncated).toBe(false)
+    expect(listing.entries.map(entry => entry.name)).toEqual(['.hidden-dir', 'linked', 'projects'])
+    // An options object without files: true keeps the plain listing form.
+    const plain = await capability.list(root, undefined, {})
+    expect(plain.files).toBeUndefined()
+  })
+
+  it('cuts the files window at maxEntries independently of directory rows, and flags the cut', async () => {
+    const ctx = new Context()
+    const fiber = ctx.plugin(BrowseDirectoryPicker, { maxEntries: 1 })
+    await fiber.await()
+    const bounded = ctx.get('directoryPicker')!.capability()
+    if (bounded.kind !== 'browse') throw new Error('browse backend must advertise the browse capability')
+    try {
+      // Eviction flavor: three files against a two-slot window. The level's
+      // one directory row is untouched — a file-heavy level cannot evict it.
+      const pile = join(root, 'filepile')
+      await mkdir(pile)
+      await mkdir(join(pile, 'sub'))
+      for (const name of ['a.txt', 'b.txt', 'c.txt']) await writeFile(join(pile, name), name)
+      const cut = await bounded.list(pile, undefined, { files: true })
+      expect(cut.files!.map(file => file.name)).toEqual(['a.txt'])
+      expect(cut.filesTruncated).toBe(true)
+      expect(cut.entries.map(entry => entry.name)).toEqual(['sub'])
+      expect(cut.truncated).toBe(false)
+      // In-window extra flavor: two files fit the window, and the extra row
+      // proves the cut without any eviction.
+      const pair = join(root, 'filepair')
+      await mkdir(pair)
+      for (const name of ['a.txt', 'b.txt']) await writeFile(join(pair, name), name)
+      const inWindow = await bounded.list(pair, undefined, { files: true })
+      expect(inWindow.files!.map(file => file.name)).toEqual(['a.txt'])
+      expect(inWindow.filesTruncated).toBe(true)
+      // Exactly at the bound is complete, not truncated.
+      const one = join(root, 'fileone')
+      await mkdir(one)
+      await writeFile(join(one, 'only.txt'), 'only')
+      const exact = await bounded.list(one, undefined, { files: true })
+      expect(exact.files!.map(file => file.name)).toEqual(['only.txt'])
+      expect(exact.filesTruncated).toBe(false)
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('excludes non-file dirents (FIFO) from the files window', async () => {
+    const special = join(root, 'special')
+    await mkdir(special)
+    await writeFile(join(special, 'normal.txt'), 'plain')
+    await promisify(execFile)('mkfifo', [join(special, 'pipe')])
+    const listing = await capability.list(special, undefined, { files: true })
+    // The FIFO is neither an enterable row nor a regular file: both windows skip it.
+    expect(listing.files!.map(file => file.name)).toEqual(['normal.txt'])
+    expect(listing.entries).toEqual([])
   })
 
   it('cuts a level at maxEntries keeping the name-sorted head, and flags the cut', async () => {

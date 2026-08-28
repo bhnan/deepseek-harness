@@ -4,9 +4,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, open, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, posix, win32 } from 'node:path'
 import { z as zod } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
@@ -571,6 +571,22 @@ function directoryError(error: unknown): RpcError {
     return { code: error.code, message: error.message, details: { path: error.path } }
   }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
+}
+
+/**
+ * True when the path names one fixed filesystem location regardless of
+ * process state — the same fence the browse listing backend applies to wire
+ * paths: POSIX-absolute on POSIX; on Windows only drive-qualified (`C:\…`)
+ * or complete UNC/device (`\\server\share…`) forms, since rooted drive-less
+ * forms pass `isAbsolute` yet still resolve against the current drive.
+ * @param path - candidate preview-read path.
+ * @param platform - replaces `process.platform` for deterministic tests.
+ * @returns whether the path is fully qualified on the platform.
+ */
+export function fullyQualifiedPath(path: string, platform: NodeJS.Platform = process.platform): boolean {
+  return platform === 'win32'
+    ? win32.isAbsolute(path) && /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/]+[^\\/]+)/.test(path)
+    : posix.isAbsolute(path)
 }
 
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
@@ -2879,7 +2895,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         try {
           // The carrier's signal follows the caller: a disconnect or timeout
           // stops the backend's directory scan instead of outliving it.
-          return ok(request, await capability.list(request.payload.path, signal))
+          return ok(request, await capability.list(
+            request.payload.path, signal,
+            request.payload.files === true ? { files: true } : undefined,
+          ))
         } catch (error: unknown) {
           // An abort is the caller's own timeout/disconnect, not a server
           // failure — same code pickDirectory and command.execute report.
@@ -2903,6 +2922,55 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return ok(request, { path: await capability.createDirectory(request.payload.path, request.payload.name) })
         } catch (error: unknown) {
           return err(request, directoryError(error))
+        }
+      },
+
+      async readFile(request, signal) {
+        const { path } = request.payload
+        // Bounds of one preview read: a text head that stays a comfortable
+        // wire payload, and a whole-image cap for data-URI rendering.
+        const TEXT_PREVIEW_BYTES = 256 * 1024
+        const IMAGE_PREVIEW_BYTES = 8 * 1024 * 1024
+        const IMAGE_MIMES: Record<string, string> = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+          webp: 'image/webp', svg: 'image/svg+xml', ico: 'image/x-icon', bmp: 'image/bmp', avif: 'image/avif',
+        }
+        // Same fully-qualified fence as the browse listing: a wire value must
+        // never resolve against the host cwd or, on Windows, its current drive.
+        if (!fullyQualifiedPath(path)) {
+          return err(request, { code: 'file-unreadable', message: `cannot read "${path}": not a fully qualified path`, details: { path } })
+        }
+        try {
+          const handle = await open(path, 'r')
+          try {
+            const stats = await handle.stat()
+            if (!stats.isFile()) {
+              return err(request, { code: 'file-unreadable', message: `cannot read ${path}: not a regular file`, details: { path } })
+            }
+            const size = stats.size
+            const dot = path.lastIndexOf('.')
+            const mime = dot === -1 ? undefined : IMAGE_MIMES[path.slice(dot + 1).toLowerCase()]
+            if (mime !== undefined) {
+              if (size > IMAGE_PREVIEW_BYTES) return ok(request, { path, size, kind: 'binary' as const, truncated: false })
+              const buffer = Buffer.alloc(size)
+              await handle.read(buffer, 0, size, 0)
+              return ok(request, { path, size, kind: 'image' as const, mime, content: buffer.toString('base64'), truncated: false })
+            }
+            const headLength = Math.min(size, TEXT_PREVIEW_BYTES)
+            const head = Buffer.alloc(headLength)
+            await handle.read(head, 0, headLength, 0)
+            // A NUL in the head marks non-text; the preview declines rather
+            // than rendering mojibake.
+            if (head.includes(0)) return ok(request, { path, size, kind: 'binary' as const, truncated: false })
+            return ok(request, { path, size, kind: 'text' as const, content: head.toString('utf8'), truncated: size > TEXT_PREVIEW_BYTES })
+          } finally {
+            await handle.close()
+          }
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+          }
+          return err(request, { code: 'file-unreadable', message: `cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, details: { path } })
         }
       },
 

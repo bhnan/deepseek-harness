@@ -53,6 +53,23 @@ export interface DirectoryListing {
    * the name-sorted tail (hidden rows count toward the bound).
    */
   truncated: boolean
+  /**
+   * Direct child regular files, name-sorted (symlinks not followed). Present
+   * only when the listing was requested with `files`; absent otherwise, so
+   * directory-picking consumers are unaffected.
+   */
+  files?: DirectoryEntry[]
+  /**
+   * True when the backend cut `files` at its complete-result bound. Present
+   * only when the listing was requested with `files`.
+   */
+  filesTruncated?: boolean
+}
+
+/** Options of a browse listing request. */
+export interface DirectoryListOptions {
+  /** Also report direct child regular files in the listing's `files` array. */
+  files?: boolean
 }
 
 /**
@@ -68,13 +85,15 @@ export interface DirectoryPickerBrowseCapability {
    * @param signal - caller lifetime; abort stops the scan (a stalled network
    * directory must not outlive a disconnected caller) and rejects with the
    * abort reason.
+   * @param options - listing options; `files` additionally reports the
+   * level's direct child regular files.
    * @returns the level's listing with ancestry; backends bound the complete
    * result, and a cut level reports `truncated`.
    * @throws {DirectoryPickerError} `directory-unreadable` when the target is not fully
    * qualified (a wire value must never resolve against the host cwd or, on
    * Windows, its current drive) or cannot be listed.
    */
-  list(path?: string, signal?: AbortSignal): Promise<DirectoryListing>
+  list(path?: string, signal?: AbortSignal, options?: DirectoryListOptions): Promise<DirectoryListing>
   /**
    * Create one child directory under an existing parent.
    * @param path - absolute existing parent directory.

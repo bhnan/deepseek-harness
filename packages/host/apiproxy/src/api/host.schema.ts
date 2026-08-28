@@ -39,6 +39,7 @@ export const directoryEntrySchema = z.object({
 /** host.listDirectory request payload; an absent path lists the home directory. */
 export const hostListDirectoryRequestSchema = z.object({
   path: z.string().optional(),
+  files: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'host.listDirectory'>>>
 
 /** host.listDirectory response value. */
@@ -48,7 +49,24 @@ export const hostListDirectoryValueSchema = z.object({
   crumbs: z.array(directoryEntrySchema),
   entries: z.array(directoryEntrySchema),
   truncated: z.boolean(),
+  files: z.array(directoryEntrySchema).optional(),
+  filesTruncated: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.listDirectory'>>>
+
+/** host.readFile request payload. */
+export const hostReadFileRequestSchema = z.object({
+  path: z.string().min(1),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.readFile'>>>
+
+/** host.readFile response value. */
+export const hostReadFileValueSchema = z.object({
+  path: z.string(),
+  size: z.number().int().nonnegative(),
+  kind: z.enum(['text', 'image', 'binary']),
+  content: z.string().optional(),
+  mime: z.string().optional(),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.readFile'>>>
 
 /** host.createDirectory request payload: name must be one plain path segment. */
 export const hostCreateDirectoryRequestSchema = z.object({

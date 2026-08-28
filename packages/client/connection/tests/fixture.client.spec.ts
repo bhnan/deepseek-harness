@@ -546,6 +546,15 @@ describe('createFixtureApi', () => {
     expect(root.result.value.entries).toContainEqual({ name: 'srv', path: '/srv', hidden: false })
   })
 
+  it('readFile answers a stable text head for any path (the fixture tree carries no bytes)', async () => {
+    const api = createFixtureApi()
+    const read = await api.host.readFile(req({ path: '/srv/readme.md' }), new AbortController().signal)
+    expect(read.result).toEqual({
+      ok: true,
+      value: { path: '/srv/readme.md', size: 20, kind: 'text', content: 'fixture file content', truncated: false },
+    })
+  })
+
   it('workspace.list serves the resident account and create reuses on path collision', async () => {
     const api = createFixtureApi()
     const listed = await api.workspace.list(req({}))
@@ -1030,6 +1039,9 @@ describe('FixtureApiClient (protocol-level fake carrier)', () => {
     expect((await client.sessions.prompt({ sessionId: id, mode: 'queue', content: [{ type: 'text', text: '嗨' }] })).result.ok).toBe(true)
     expect((await client.sessions.cancel({ sessionId: id })).result.ok).toBe(true)
     expect((await client.host.describe({})).result.ok).toBe(true)
+    expect((await client.host.readFile({ path: '/srv/readme.md' })).result).toMatchObject({
+      ok: true, value: { kind: 'text', content: 'fixture file content' },
+    })
     expect((await client.workspace.list({})).result.ok).toBe(true)
     const workspace = await client.workspace.create({ path: '/tmp/fixture-workspaces/via-client' })
     if (!workspace.result.ok) throw new Error('workspace create failed')

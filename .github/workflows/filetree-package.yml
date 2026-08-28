@@ -1,0 +1,91 @@
+name: File-tree installer packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the private GitHub Packages npm packages after packing
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  pack:
+    name: Pack ${{ matrix.target }}
+    strategy:
+      matrix:
+        include:
+          - target: macos-arm64
+            runner: macos-14
+          - target: linux-x64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify runner architecture
+        shell: bash
+        run: |
+          test "$(uname -m)" = "${{ matrix.target == 'macos-arm64' && 'arm64' || 'x86_64' }}"
+      - name: Build and pack release families
+        run: |
+          pnpm run release:verify --family dsh
+          pnpm run build:official
+          pnpm run release:pack --family dsh --out dist/npm
+          pnpm run release:pack --family vendor --out dist/npm-vendor
+          pnpm --dir native/landlock-run run build:ts
+          pnpm --dir native/landlock-run/packages/entry pack --pack-destination "$PWD/dist/npm-landlock"
+      - name: Assemble installer staging
+        run: |
+          version=$(node -p "require('./package.json').version")
+          pnpm run release:assemble-installer --namespace bhnan --version "$version" --dsh dist/npm --vendor dist/npm-vendor --landlock dist/npm-landlock --out "dist/filetree-installer"
+          mkdir -p dist/filetree-tarballs
+          if [ "${{ matrix.target }}" = linux-x64 ]; then npm pack dist/filetree-installer/entry --pack-destination dist/filetree-tarballs; fi
+          npm pack dist/filetree-installer/${{ matrix.target }} --pack-destination dist/filetree-tarballs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: filetree-${{ matrix.target }}
+          path: dist/filetree-tarballs/*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish private GitHub Packages
+    needs: pack
+    if: ${{ inputs.publish == true }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: filetree-*
+          path: dist/filetree-tarballs
+          merge-multiple: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://npm.pkg.github.com
+          scope: '@bhnan'
+      - name: Publish entry and platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --access restricted --registry https://npm.pkg.github.com dist/filetree-tarballs/*.tgz

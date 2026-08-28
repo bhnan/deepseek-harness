@@ -18,6 +18,7 @@ import {
   hostCreateDirectoryRequestSchema, hostCreateDirectoryValueSchema,
   hostDescribeRequestSchema, hostDescribeValueSchema,
   hostListDirectoryRequestSchema, hostListDirectoryValueSchema,
+  hostReadFileRequestSchema, hostReadFileValueSchema,
 } from '../src/api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema, workspaceArchiveSessionValueSchema,
@@ -67,6 +68,8 @@ describe('rpcErrorSchema', () => {
     expect(rpcErrorSchema.parse({ code: 'workspace-invalid-path', message: 'm', details: { path: '/x' } }).code).toBe('workspace-invalid-path')
     expect(rpcErrorSchema.parse({ code: 'workspace-name-conflict', message: 'm', details: { name: 'x' } }).code).toBe('workspace-name-conflict')
     expect(rpcErrorSchema.parse({ code: 'workspace-move-invalid', message: 'm', details: { workspaceId: 'w', sessionId: 's' } }).code).toBe('workspace-move-invalid')
+    expect(rpcErrorSchema.parse({ code: 'directory-unreadable', message: 'm', details: { path: '/x' } }).code).toBe('directory-unreadable')
+    expect(rpcErrorSchema.parse({ code: 'file-unreadable', message: 'm', details: { path: '/x/a.txt' } }).code).toBe('file-unreadable')
     expect(rpcErrorSchema.parse({
       code: 'model-unavailable',
       message: 'm',
@@ -84,6 +87,7 @@ describe('rpcErrorSchema', () => {
 
   it('rejects a known code with missing details', () => {
     expect(() => rpcErrorSchema.parse({ code: 'agent-busy', message: 'm', details: {} })).toThrow()
+    expect(() => rpcErrorSchema.parse({ code: 'file-unreadable', message: 'm', details: {} })).toThrow()
     expect(() => rpcErrorSchema.parse({ code: 'title-invalid', message: 'm', details: {} })).toThrow()
     expect(() => rpcErrorSchema.parse({ code: 'command-error', message: 'm' })).toThrow()
     expect(() => rpcErrorSchema.parse({ code: 'nope', message: 'm', details: {} })).toThrow()
@@ -329,6 +333,8 @@ describe('host domain schemas', () => {
   it('validates the browse listing/creation payloads', () => {
     expect(hostListDirectoryRequestSchema.parse({})).toEqual({})
     expect(hostListDirectoryRequestSchema.parse({ path: '/x' })).toEqual({ path: '/x' })
+    expect(hostListDirectoryRequestSchema.parse({ path: '/x', files: true })).toEqual({ path: '/x', files: true })
+    expect(() => hostListDirectoryRequestSchema.parse({ files: 'yes' })).toThrow()
     const listing = hostListDirectoryValueSchema.parse({
       path: '/home/u/p',
       home: '/home/u',
@@ -337,6 +343,17 @@ describe('host domain schemas', () => {
       truncated: false,
     })
     expect(listing.entries[0]?.hidden).toBe(true)
+    // The files window is opt-in wire data: absent by default, name-shaped when present.
+    expect(listing.files).toBeUndefined()
+    const withFiles = hostListDirectoryValueSchema.parse({
+      path: '/x', home: '/x', crumbs: [], entries: [], truncated: false,
+      files: [{ name: 'a.txt', path: '/x/a.txt', hidden: false }], filesTruncated: true,
+    })
+    expect(withFiles.files).toHaveLength(1)
+    expect(withFiles.filesTruncated).toBe(true)
+    expect(() => hostListDirectoryValueSchema.parse({
+      path: '/x', home: '/x', crumbs: [], entries: [], truncated: false, files: ['a.txt'],
+    })).toThrow()
     // The flag is part of the wire value, not an optional decoration.
     expect(() => hostListDirectoryValueSchema.parse({ path: '/x', home: '/x', crumbs: [], entries: [] })).toThrow()
     expect(hostCreateDirectoryRequestSchema.parse({ path: '/x', name: 'new' })).toEqual({ path: '/x', name: 'new' })
@@ -344,6 +361,25 @@ describe('host domain schemas', () => {
       expect(() => hostCreateDirectoryRequestSchema.parse({ path: '/x', name })).toThrow()
     }
     expect(hostCreateDirectoryValueSchema.parse({ path: '/x/new' })).toEqual({ path: '/x/new' })
+  })
+
+  it('validates the preview-read payloads', () => {
+    expect(hostReadFileRequestSchema.parse({ path: '/x/a.txt' })).toEqual({ path: '/x/a.txt' })
+    expect(() => hostReadFileRequestSchema.parse({ path: '' })).toThrow()
+    expect(() => hostReadFileRequestSchema.parse({})).toThrow()
+    expect(hostReadFileValueSchema.parse({
+      path: '/x/a.txt', size: 5, kind: 'text', content: 'hello', truncated: false,
+    }).kind).toBe('text')
+    expect(hostReadFileValueSchema.parse({
+      path: '/x/p.png', size: 3, kind: 'image', mime: 'image/png', content: 'AA==', truncated: false,
+    }).mime).toBe('image/png')
+    // A binary verdict carries no content; content/mime stay optional wire data.
+    expect(hostReadFileValueSchema.parse({
+      path: '/x/blob', size: 9, kind: 'binary', truncated: false,
+    }).content).toBeUndefined()
+    expect(() => hostReadFileValueSchema.parse({ path: '/x/a.txt', size: -1, kind: 'text', truncated: false })).toThrow()
+    expect(() => hostReadFileValueSchema.parse({ path: '/x/a.txt', size: 1, kind: 'archive', truncated: false })).toThrow()
+    expect(() => hostReadFileValueSchema.parse({ path: '/x/a.txt', size: 1, kind: 'text' })).toThrow()
   })
 })
 

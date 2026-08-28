@@ -156,6 +156,12 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async createDirectory(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/new' } } }
       },
+      async readFile(request) {
+        return {
+          rpcId: request.rpcId,
+          result: { ok: true, value: { path: request.payload.path, size: 5, kind: 'text' as const, content: 'hello', truncated: false } },
+        }
+      },
       async openPath(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { opened: true as const } } }
       },
@@ -410,6 +416,49 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     expect(home.result).toMatchObject({ ok: true, value: { home: '/w' } })
     const created = await c.host.createDirectory({ path: '/w', name: 'fresh' })
     expect(created.result).toEqual({ ok: true, value: { path: '/w/new' } })
+  })
+
+  it('round-trips the files-window listing fields through the wire form', async () => {
+    const api = fakeApi()
+    let requestedFiles: boolean | undefined
+    api.host.listDirectory = async (request) => {
+      requestedFiles = request.payload.files
+      return {
+        rpcId: request.rpcId,
+        result: {
+          ok: true,
+          value: {
+            path: '/w', home: '/w', crumbs: [{ name: '/', path: '/', hidden: false }], entries: [], truncated: false,
+            files: [{ name: 'a.txt', path: '/w/a.txt', hidden: false }], filesTruncated: true,
+          },
+        },
+      }
+    }
+    const listed = await client(api).host.listDirectory({ path: '/w', files: true })
+    expect(requestedFiles).toBe(true)
+    expect(listed.result).toMatchObject({
+      ok: true,
+      value: { files: [{ name: 'a.txt', path: '/w/a.txt', hidden: false }], filesTruncated: true },
+    })
+  })
+
+  it('round-trips host.readFile through the wire form', async () => {
+    const c = client()
+    const read = await c.host.readFile({ path: '/w/a.txt' })
+    expect(read.result).toEqual({
+      ok: true,
+      value: { path: '/w/a.txt', size: 5, kind: 'text', content: 'hello', truncated: false },
+    })
+    const api = fakeApi()
+    api.host.readFile = async request => ({
+      rpcId: request.rpcId,
+      result: { ok: true, value: { path: request.payload.path, size: 3, kind: 'image' as const, mime: 'image/png', content: 'AA==', truncated: false } },
+    })
+    const image = await client(api).host.readFile({ path: '/w/p.png' })
+    expect(image.result).toEqual({
+      ok: true,
+      value: { path: '/w/p.png', size: 3, kind: 'image', mime: 'image/png', content: 'AA==', truncated: false },
+    })
   })
 
   it('round-trips host.openPath through the wire form', async () => {
