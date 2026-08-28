@@ -33,6 +33,7 @@ describe('CI workflow', () => {
     if (!isRecord(assemble) || typeof assemble.run !== 'string') {
       throw new TypeError('installer staging must define a run script')
     }
+    expect(assemble.env).toMatchObject({ PRIVATE_VERSION: "${{ inputs.private_version || '0.1' }}" })
     expect(assemble.run).toContain('installer_version="${source_version}-bhn.${PRIVATE_VERSION}"')
     expect(assemble.run).toContain('--source-version "$source_version"')
     expect(assemble.run).toContain('--version "$installer_version"')
