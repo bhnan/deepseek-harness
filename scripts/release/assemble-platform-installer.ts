@@ -178,7 +178,8 @@ if (result.status !== 0) throw new Error('npm failed while assembling the DeepSe
 
 /** Generate the entry and platform launcher scripts. */
 function launcherSources(namespace: string): { entry: string; platform: string } {
-  const entry = `import { createRequire } from 'node:module'
+  const entry = `#!/usr/bin/env node
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -200,7 +201,8 @@ if (result.error !== undefined) throw result.error
 if (result.signal !== null) process.kill(process.pid, result.signal)
 process.exit(result.status ?? 1)
 `
-  const platformLauncher = `import { join } from 'node:path'
+  const platformLauncher = `#!/usr/bin/env node
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
