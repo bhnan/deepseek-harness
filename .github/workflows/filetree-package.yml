@@ -8,6 +8,11 @@ on:
         required: true
         default: false
         type: boolean
+      private_version:
+        description: Private build revision appended after the bhn identifier
+        required: true
+        default: '0.1'
+        type: string
 
 permissions:
   contents: read
@@ -53,9 +58,12 @@ jobs:
           pnpm --dir native/landlock-run run build:ts
           pnpm --dir native/landlock-run/packages/entry pack --pack-destination "$PWD/dist/npm-landlock"
       - name: Assemble installer staging
+        env:
+          PRIVATE_VERSION: ${{ inputs.private_version }}
         run: |
-          version=$(node -p "require('./package.json').version")
-          pnpm run release:assemble-installer --namespace bhnan --version "$version" --dsh dist/npm --vendor dist/npm-vendor --landlock dist/npm-landlock --out "dist/filetree-installer"
+          source_version=$(node -p "require('./package.json').version")
+          installer_version="${source_version}-bhn.${PRIVATE_VERSION}"
+          pnpm run release:assemble-installer --namespace bhnan --version "$installer_version" --source-version "$source_version" --dsh dist/npm --vendor dist/npm-vendor --landlock dist/npm-landlock --out "dist/filetree-installer"
           mkdir -p dist/filetree-tarballs
           if [ "${{ matrix.target }}" = linux-x64 ]; then npm pack dist/filetree-installer/entry --pack-destination dist/filetree-tarballs; fi
           npm pack dist/filetree-installer/${{ matrix.target }} --pack-destination dist/filetree-tarballs

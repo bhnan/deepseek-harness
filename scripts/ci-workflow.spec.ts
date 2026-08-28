@@ -15,7 +15,12 @@ describe('CI workflow', () => {
       permissions: { contents: 'read' },
     })
     const dispatch = workflowEvent(workflow, 'workflow_dispatch')
-    expect(dispatch).toMatchObject({ inputs: { publish: { type: 'boolean', default: false } } })
+    expect(dispatch).toMatchObject({
+      inputs: {
+        publish: { type: 'boolean', default: false },
+        private_version: { type: 'string', default: '0.1' },
+      },
+    })
     const pack = workflowJob(workflow, 'pack')
     if (!isRecord(pack.strategy) || !isRecord(pack.strategy.matrix) || !Array.isArray(pack.strategy.matrix.include)) {
       throw new TypeError('file-tree pack job must define a matrix include list')
@@ -24,6 +29,13 @@ describe('CI workflow', () => {
     expect(pack.strategy.matrix.include).toContainEqual({ target: 'linux-x64', runner: 'ubuntu-24.04' })
     if (!Array.isArray(pack.steps)) throw new TypeError('file-tree pack job must define steps')
     const steps = pack.steps as unknown[]
+    const assemble: unknown = steps.find(step => isRecord(step) && step.name === 'Assemble installer staging')
+    if (!isRecord(assemble) || typeof assemble.run !== 'string') {
+      throw new TypeError('installer staging must define a run script')
+    }
+    expect(assemble.run).toContain('installer_version="${source_version}-bhn.${PRIVATE_VERSION}"')
+    expect(assemble.run).toContain('--source-version "$source_version"')
+    expect(assemble.run).toContain('--version "$installer_version"')
     const smoke: unknown = steps.find(step => isRecord(step) && step.name === 'Verify packed installer')
     expect(smoke).toMatchObject({ shell: 'bash' })
     if (!isRecord(smoke) || typeof smoke.run !== 'string') throw new TypeError('packed installer smoke must define a run script')
