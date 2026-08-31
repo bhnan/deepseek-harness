@@ -21,6 +21,7 @@ function scriptedApi(overrides: {
   sessions?: Partial<ApiProxy['sessions']>
   subagents?: Partial<ApiProxy['subagents']>
   host?: Partial<ApiProxy['host']>
+  workspace?: Partial<ApiProxy['workspace']>
   skills?: Partial<ApiProxy['skills']>
   agentPresets?: Partial<ApiProxy['agentPresets']>
   events?: Partial<ApiProxy['events']>
@@ -88,6 +89,10 @@ function scriptedApi(overrides: {
       insertBefore: r => ok(r, { workspaceIds: [r.payload.workspaceId] }),
       insertSessionBefore: r => ok(r, { workspace: { workspaceId: 'w1' as never, path: '/t', title: 't', sessionIds: [], createdAt: '0', updatedAt: '0' } }),
       archiveSession: r => ok(r, { archivedSessionIds: [r.payload.sessionId] }),
+      uploadFile: r => ok(r, {
+        path: 'uploads/upload.bin', name: 'upload.bin', bytes: 0, sha256: '0'.repeat(64),
+      }),
+      ...overrides.workspace,
     },
     skills: { list: r => ok(r, { skills: [] }), ...overrides.skills },
     agentPresets: {
@@ -237,6 +242,37 @@ describe('unary round trip', () => {
     expect(anchored.result.ok).toBe(true)
     const appended = await c.workspace.insertSessionBefore({ workspaceId: 'w1' as never, sessionId: sid('s1') })
     expect(appended.result.ok).toBe(true)
+  })
+
+  it('routes a workspace file upload through the JSON carrier', async () => {
+    const api = scriptedApi({
+      workspace: {
+        uploadFile: request => ok(request, {
+          path: 'uploads/report.txt',
+          name: 'report.txt',
+          bytes: 1,
+          sha256: 'a'.repeat(64),
+          mediaType: 'text/plain',
+        }),
+      },
+    })
+    const response = await client(api).workspace.uploadFile({
+      workspaceId: 'w1' as never,
+      name: 'report.txt',
+      mediaType: 'text/plain',
+      data: 'YQ==',
+    })
+
+    expect(response.result).toEqual({
+      ok: true,
+      value: {
+        path: 'uploads/report.txt',
+        name: 'report.txt',
+        bytes: 1,
+        sha256: 'a'.repeat(64),
+        mediaType: 'text/plain',
+      },
+    })
   })
 
   it('routes the agent-preset roster and switch through the wire', async () => {

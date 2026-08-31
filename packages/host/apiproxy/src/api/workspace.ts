@@ -35,6 +35,20 @@ export interface WorkspaceView {
   updatedAt: string
 }
 
+/** Metadata returned after a file is stored below one workspace's uploads directory. */
+export interface WorkspaceFileUpload {
+  /** Workspace-relative path using `/` separators. */
+  path: string
+  /** Final stored filename after safety normalization/collision handling. */
+  name: string
+  /** Number of decoded bytes written. */
+  bytes: number
+  /** SHA-256 digest of the stored bytes. */
+  sha256: string
+  /** Browser-declared media type, when supplied. */
+  mediaType?: string
+}
+
 /** Workspace-domain unary methods (the map keys workspace.* of RpcMethodMap). */
 export interface WorkspaceApi {
   /**
@@ -106,4 +120,12 @@ export interface WorkspaceApi {
    */
   archiveSession(request: RpcRequest<{ sessionId: SessionId }>):
   Promise<RpcResponse<{ archivedSessionIds: SessionId[] }>>
+
+  /** Stores one bounded browser upload below the addressed workspace. */
+  uploadFile(request: RpcRequest<{
+    workspaceId: WorkspaceId
+    name: string
+    mediaType?: string
+    data: string
+  }>): Promise<RpcResponse<WorkspaceFileUpload>>
 }

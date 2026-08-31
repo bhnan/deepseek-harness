@@ -2788,6 +2788,25 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         return ok(request, { archivedSessionIds: [...archivedSessionIds] })
       },
+      uploadFile: (request) => {
+        const workspace = workspaces.find(candidate => candidate.workspaceId === request.payload.workspaceId)
+        if (workspace === undefined) {
+          return err(request, {
+            code: 'workspace-not-found',
+            message: `no workspace ${request.payload.workspaceId}`,
+            details: { workspaceId: request.payload.workspaceId },
+          })
+        }
+        const data = request.payload.data
+        const bytes = data === '' ? 0 : Math.floor(data.replace(/=+$/u, '').length * 3 / 4)
+        return ok(request, {
+          path: `uploads/${request.payload.name.replace(/[\\/]/gu, '_')}`,
+          name: request.payload.name.replace(/[\\/]/gu, '_'),
+          bytes,
+          sha256: '0'.repeat(64),
+          ...(request.payload.mediaType === undefined ? {} : { mediaType: request.payload.mediaType }),
+        })
+      },
     },
     agentPresets: {
       // Both trusts appear, because a surface must present a locally authored
@@ -3203,6 +3222,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertBefore': return this.api.workspace.insertBefore(request)
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
+      case 'workspace.uploadFile': return this.api.workspace.uploadFile(request)
       case 'skill.list': return this.api.skills.list(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)

@@ -98,3 +98,20 @@ export const workspaceArchiveSessionRequestSchema = z.object({
 export const workspaceArchiveSessionValueSchema = z.object({
   archivedSessionIds: z.array(sessionIdSchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'workspace.archiveSession'>>>
+
+/** workspace.uploadFile request payload. The host decodes and bounds the base64 data. */
+export const workspaceUploadFileRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  name: z.string().min(1).max(240),
+  mediaType: z.string().max(127).optional(),
+  data: z.string(),
+}) satisfies z.ZodType<Wire<RequestPayload<'workspace.uploadFile'>>>
+
+/** workspace.uploadFile response value. */
+export const workspaceUploadFileValueSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  bytes: z.number().int().nonnegative(),
+  sha256: z.string().length(64),
+  mediaType: z.string().optional(),
+}) satisfies z.ZodType<Wire<ResponseValue<'workspace.uploadFile'>>>

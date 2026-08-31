@@ -191,6 +191,17 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async archiveSession(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { archivedSessionIds: [request.payload.sessionId] } } }
       },
+      async uploadFile(request) {
+        return {
+          rpcId: request.rpcId,
+          result: {
+            ok: true,
+            value: {
+              path: 'uploads/upload.bin', name: 'upload.bin', bytes: 0, sha256: '0'.repeat(64),
+            },
+          },
+        }
+      },
     },
     agentPresets: {
       list(request: RpcRequest<{}>) {

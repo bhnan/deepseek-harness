@@ -110,6 +110,7 @@ import {
   inspectApiRemoteSession,
 } from '@deepseek-ai/dsh-api-remotes'
 import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-path-opener.ts'
+import { DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES, saveWorkspaceUpload } from './workspace-upload.ts'
 
 /** Page size when history is called without maxMessages. */
 const DEFAULT_MAX_MESSAGES = 50
@@ -600,6 +601,8 @@ export interface ApiProxyDefaults {
   sessionExportCompressionLevel?: SessionLogCompressionLevel
   /** Maximum artifact size eligible for one cold blankness read. */
   coldBlankProbeMaxBytes?: number
+  /** Maximum decoded bytes accepted by one workspace file upload. */
+  workspaceUploadMaxBytes?: number
   /**
    * Whether handing a path to the native opener can work at all — the
    * `hasDocument` capability the preset roster reports, and the switch
@@ -1049,6 +1052,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ?? DEFAULT_SESSION_LOG_COMPRESSION_LEVEL
   const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
     ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES
+  const workspaceUploadMaxBytes = defaults.workspaceUploadMaxBytes
+    ?? DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES
   /** The seed model each create/resume declares; re-read so it never goes stale. */
   const agentOptions = (): AgentOptions => {
     const { provider, model } = defaults.defaultModelSelection()
@@ -2817,6 +2822,26 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         }
         return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
+      },
+
+      async uploadFile(request) {
+        const { workspaceId, name, mediaType, data } = request.payload
+        const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(workspaceId))
+        if (workspace === undefined) return workspaceNotFound(request, workspaceId)
+        try {
+          return ok(request, await saveWorkspaceUpload(workspace.path, {
+            name,
+            data,
+            ...(mediaType === undefined ? {} : { mediaType }),
+          }, workspaceUploadMaxBytes))
+        } catch (error: unknown) {
+          const reason = error instanceof Error ? error.message : String(error)
+          return err(request, {
+            code: 'attachment-error',
+            message: reason,
+            details: { reason },
+          })
+        }
       },
     },
 

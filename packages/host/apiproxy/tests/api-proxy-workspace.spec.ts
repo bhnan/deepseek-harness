@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -317,6 +317,63 @@ describe('workspace.create', () => {
     expect(secondResult.workspace.workspaceId).not.toBe(firstResult.workspace.workspaceId)
     expect(expectOk(await api.workspace.list(request({}))).items.map(workspace => workspace.path))
       .toEqual([second, first])
+  })
+})
+
+describe('workspace.uploadFile', () => {
+  it('stores decoded bytes below the registered workspace and returns a relative path', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create({
+      ...request({ path: stageDir(root, 'project') }),
+    })).workspace
+    const data = Buffer.from('# uploaded locally\n', 'utf8')
+
+    const response = await api.workspace.uploadFile(request({
+      workspaceId: workspace.workspaceId,
+      name: 'notes.md',
+      mediaType: 'text/markdown',
+      data: data.toString('base64'),
+    }))
+
+    const uploaded = expectOk(response)
+    expect(uploaded).toMatchObject({
+      path: 'uploads/notes.md',
+      name: 'notes.md',
+      bytes: data.byteLength,
+      mediaType: 'text/markdown',
+    })
+    expect(uploaded.sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(readFileSync(join(workspace.path, uploaded.path))).toEqual(data)
+  })
+
+  it('rejects an unknown workspace without creating anything', async () => {
+    const { api, root } = await harness()
+    const response = await api.workspace.uploadFile(request({
+      workspaceId: 'workspace-missing' as WorkspaceId,
+      name: 'notes.md',
+      data: Buffer.from('missing workspace').toString('base64'),
+    }))
+
+    expect(response.result).toMatchObject({
+      ok: false,
+      error: { code: 'workspace-not-found', details: { workspaceId: 'workspace-missing' } },
+    })
+    expect(existsSync(join(root, 'uploads'))).toBe(false)
+  })
+
+  it('turns malformed upload data into an attachment error', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create({
+      ...request({ path: stageDir(root, 'project') }),
+    })).workspace
+
+    const response = await api.workspace.uploadFile(request({
+      workspaceId: workspace.workspaceId,
+      name: 'notes.md',
+      data: 'not base64',
+    }))
+
+    expect(response.result).toMatchObject({ ok: false, error: { code: 'attachment-error' } })
   })
 })
 

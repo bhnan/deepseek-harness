@@ -17,6 +17,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type { ApiProxy } from './api/index.ts'
 import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './api-proxy.ts'
+import { DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES } from './workspace-upload.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
   type SessionLogCompressionLevel,
@@ -59,6 +60,8 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
+  /** Maximum decoded bytes accepted by one workspace file upload. */
+  workspaceUploadMaxBytes?: number
 }
 
 /**
@@ -77,6 +80,7 @@ export class ApiProxyService extends Service implements ApiProxy {
     sessionExportCompressionLevel: z.number().step(1).min(0).max(9)
       .default(DEFAULT_SESSION_LOG_COMPRESSION_LEVEL) as z<SessionLogCompressionLevel>,
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    workspaceUploadMaxBytes: z.natural().default(DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES),
   })
 
   readonly sessions: ApiProxy['sessions']
@@ -106,6 +110,9 @@ export class ApiProxyService extends Service implements ApiProxy {
       ...(config.coldBlankProbeMaxBytes === undefined
         ? {}
         : { coldBlankProbeMaxBytes: config.coldBlankProbeMaxBytes }),
+      ...(config.workspaceUploadMaxBytes === undefined
+        ? {}
+        : { workspaceUploadMaxBytes: config.workspaceUploadMaxBytes }),
     })
     this.sessions = api.sessions
     this.subagents = api.subagents
