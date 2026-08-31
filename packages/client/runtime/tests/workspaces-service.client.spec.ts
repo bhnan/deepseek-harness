@@ -336,8 +336,12 @@ describe('WorkspaceRuntime', () => {
     api.onListDirectory = () => Promise.resolve(ok(listing))
     await expect(workspaces.listDirectory()).resolves.toEqual(listing)
     await expect(workspaces.listDirectory('/home/u')).resolves.toEqual(listing)
+    // The files option rides the payload only when asked for; a false or
+    // absent option stays off the wire like the optional path.
+    await expect(workspaces.listDirectory('/home/u', undefined, { files: true })).resolves.toEqual(listing)
+    await expect(workspaces.listDirectory(undefined, undefined, { files: false })).resolves.toEqual(listing)
     // The optional path is omitted from the payload, not sent as undefined.
-    expect(api.callsOf('host.listDirectory')).toEqual([{}, { path: '/home/u' }])
+    expect(api.callsOf('host.listDirectory')).toEqual([{}, { path: '/home/u' }, { path: '/home/u', files: true }, {}])
     api.onListDirectory = () => Promise.resolve(err({ code: 'directory-unreadable', message: 'denied', details: { path: '/x' } }))
     const listFailure = workspaces.listDirectory('/x')
     await expect(listFailure).rejects.toBeInstanceOf(DirectoryBrowseError)
@@ -347,6 +351,20 @@ describe('WorkspaceRuntime', () => {
     expect(api.callsOf('host.createDirectory')).toEqual([{ path: '/home/u', name: 'fresh' }])
     api.onCreateDirectory = () => Promise.resolve(err({ code: 'directory-exists', message: 'taken', details: { path: '/home/u/fresh' } }))
     await expect(workspaces.createDirectory('/home/u', 'fresh')).rejects.toMatchObject({ rpcError: { code: 'directory-exists' } })
+  })
+
+  it('passes preview reads through the wire, wrapping business failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    const content = { path: '/w/alpha/a.ts', size: 4, kind: 'text' as const, content: 'code', truncated: false }
+    api.onReadFile = () => Promise.resolve(ok(content))
+    await expect(workspaces.readFile('/w/alpha/a.ts')).resolves.toEqual(content)
+    expect(api.callsOf('host.readFile')).toEqual([{ path: '/w/alpha/a.ts' }])
+    api.onReadFile = () => Promise.resolve(err({ code: 'file-unreadable', message: 'denied', details: { path: '/w/alpha/gone' } }))
+    const readFailure = workspaces.readFile('/w/alpha/gone')
+    await expect(readFailure).rejects.toBeInstanceOf(DirectoryBrowseError)
+    await expect(readFailure).rejects.toMatchObject({ rpcError: { code: 'file-unreadable' } })
   })
 
   it('opens a filesystem path through the host without local state', async () => {

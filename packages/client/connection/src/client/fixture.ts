@@ -2655,6 +2655,15 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         directoryTree.set(target, [])
         return ok(request, { path: target })
       },
+      // Deterministic preview read: the fixture tree carries no file bytes,
+      // so every path answers a small stable text head.
+      readFile: request => ok(request, {
+        path: request.payload.path,
+        size: 20,
+        kind: 'text' as const,
+        content: 'fixture file content',
+        truncated: false,
+      }),
       openPath: request => ok(request, { opened: true as const }),
     },
     workspace: {
@@ -3214,6 +3223,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.pickDirectory': return this.api.host.pickDirectory(request, new AbortController().signal)
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
+      case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)

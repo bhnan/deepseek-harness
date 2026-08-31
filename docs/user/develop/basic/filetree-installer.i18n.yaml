@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/develop/basic/filetree-installer.md
+filetree-installer.md: 90cda012c0b5211f3ea0e115a93bf3c0cee81c5b
+filetree-installer.zh.md: 50e8dc475af46f6258ca85d9f599788506212fe1

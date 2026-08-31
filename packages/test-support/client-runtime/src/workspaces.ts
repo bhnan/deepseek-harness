@@ -1,7 +1,7 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
+  DirectoryListing, FileContent, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { workspaceListState } from './fixtures.ts'
 import type { Stabilizer } from './fixtures.ts'
@@ -112,15 +112,17 @@ export class TestWorkspaces implements IWorkspaces {
    * Browse listing (recorded). The default serves an empty home level; stub
    * to shape a tree.
    * @param path - absolute directory to list; absent lists the home level.
+   * @param signal - forwarded like the production face passes it to the wire.
+   * @param options - `files: true` mirrors the production face's opt-in files window.
    * @returns the level's listing.
    */
-  async listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing> {
+  async listDirectory(path?: string, signal?: AbortSignal, options?: { files?: boolean }): Promise<DirectoryListing> {
     // The signal is recorded and forwarded like the production face passes
     // it to the wire, so cancellation integration tests can observe or
     // reject on a superseded scan.
-    this.calls.push({ method: 'listDirectory', args: [path, signal] })
+    this.calls.push({ method: 'listDirectory', args: [path, signal, options] })
     const stub = this.stubs.get('listDirectory')
-    if (stub !== undefined) return await (stub(path, signal) as Promise<DirectoryListing>)
+    if (stub !== undefined) return await (stub(path, signal, options) as Promise<DirectoryListing>)
     // The chain runs root-to-target inclusive, per the DirectoryListing
     // contract — a bare root crumb would mislabel the level in browsers
     // driven by this double.
@@ -134,7 +136,23 @@ export class TestWorkspaces implements IWorkspaces {
       ],
       entries: [],
       truncated: false,
+      // Like production, the files window appears only when asked for.
+      ...options?.files === true ? { files: [], filesTruncated: false } : {},
     }
+  }
+
+  /**
+   * Read one file for preview (recorded). The default answers a stable text
+   * head; stub for image/binary/error flows.
+   * @param path - absolute file path.
+   * @param signal - forwarded like the production face passes it to the wire.
+   * @returns the bounded file content.
+   */
+  async readFile(path: string, signal?: AbortSignal): Promise<FileContent> {
+    this.calls.push({ method: 'readFile', args: [path, signal] })
+    const stub = this.stubs.get('readFile')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<FileContent>)
+    return { path, size: 17, kind: 'text', content: 'test file content', truncated: false }
   }
 
   /**

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-25-trusted-host-privileged-methods.md
+2026-08-25-trusted-host-privileged-methods.md: 0729afa573f53b33bf5f9376399c644de4320126
+2026-08-25-trusted-host-privileged-methods.zh.md: 7f7e7224e5394fc583447b84e48ac82afe007b95

@@ -296,6 +296,19 @@
   padding-left: 0;
 }
 
+/* The workspace file-tree band: bounded to the lower part of the column so
+   the session list above keeps priority; the occupant owns its own header
+   and internal scroll region. Empty hole → zero height (no reserved gap). */
+.fileArea {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 40%;
+  overflow: hidden;
+  margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
+}
+
 /* Footer seats: additive actions stack above Settings. Each occupant owns its
    button geometry and hover chrome. */
 .footArea {

@@ -2,7 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  DirectoryListing, IApiClient, RpcError,
+  DirectoryListing, FileContent, IApiClient, RpcError,
   SessionId, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
@@ -218,10 +218,26 @@ export class WorkspaceRuntime implements IWorkspaces {
    * List one directory level through the Host's `browse` capability.
    * @param path - absolute directory to list; absent lists the Host home directory.
    * @param signal - aborts the wire request (and the Host's scan) when the caller supersedes it.
+   * @param options - `files: true` additionally reports the level's direct child regular files.
    * @returns the level's listing with breadcrumb ancestry.
    */
-  async listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing> {
-    const response = await this.api.host.listDirectory(path === undefined ? {} : { path }, signal)
+  async listDirectory(path?: string, signal?: AbortSignal, options?: { files?: boolean }): Promise<DirectoryListing> {
+    const response = await this.api.host.listDirectory({
+      ...(path !== undefined && { path }),
+      ...(options?.files === true && { files: true }),
+    }, signal)
+    if (!response.result.ok) throw new DirectoryBrowseError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Read one regular file for in-app preview (bounded server-side).
+   * @param path - absolute file path.
+   * @param signal - aborts the wire request when the caller supersedes it.
+   * @returns the bounded file content.
+   */
+  async readFile(path: string, signal?: AbortSignal): Promise<FileContent> {
+    const response = await this.api.host.readFile({ path }, signal)
     if (!response.result.ok) throw new DirectoryBrowseError(response.result.error)
     return response.result.value
   }

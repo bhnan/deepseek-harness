@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ import type { HostFrame, WorkspaceId } from '@deepseek-ai/dsh-host-apiproxy/api'
 import type { RpcRequest, RpcResponse } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
+import { fullyQualifiedPath } from '../src/api-proxy.ts'
 import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 
 let nextRpc = 1
@@ -225,6 +226,107 @@ describe('host.listDirectory / host.createDirectory', () => {
     expect((await api.host.createDirectory(request({ path: '/x', name: 'y' }))).result).toMatchObject({
       ok: false, error: { code: 'directory-picker-unavailable', details: { capability: 'native' } },
     })
+  })
+})
+
+describe('host.readFile', () => {
+  it('serves a UTF-8 text head with exact size and truncation accounting', async () => {
+    const { api, root } = await harness()
+    const small = join(root, 'notes.txt')
+    writeFileSync(small, 'hello 世界')
+    const read = expectOk(await api.host.readFile(request({ path: small }), new AbortController().signal))
+    expect(read).toEqual({
+      path: small, size: Buffer.byteLength('hello 世界'), kind: 'text', content: 'hello 世界', truncated: false,
+    })
+
+    // Beyond the 256 KiB text bound: only the head travels, flagged truncated.
+    const big = join(root, 'big.log')
+    writeFileSync(big, Buffer.alloc(256 * 1024 + 10, 0x61))
+    const head = expectOk(await api.host.readFile(request({ path: big }), new AbortController().signal))
+    expect(head).toMatchObject({ kind: 'text', size: 256 * 1024 + 10, truncated: true })
+    expect(head.content).toHaveLength(256 * 1024)
+  })
+
+  it('serves an image whole as base64 with its extension mime, and declines an oversized one as binary', async () => {
+    const { api, root } = await harness()
+    // PNG magic carries a NUL: the image arm must not run the text NUL probe.
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01])
+    // The uppercase extension exercises the case-folded mime lookup.
+    const image = join(root, 'Pixel.PNG')
+    writeFileSync(image, bytes)
+    const read = expectOk(await api.host.readFile(request({ path: image }), new AbortController().signal))
+    expect(read).toEqual({
+      path: image, size: bytes.length, kind: 'image', mime: 'image/png', content: bytes.toString('base64'), truncated: false,
+    })
+
+    // Over the 8 MiB image bound: declined as binary rather than half-sent.
+    const oversized = join(root, 'huge.png')
+    writeFileSync(oversized, Buffer.alloc(8 * 1024 * 1024 + 1))
+    const declined = expectOk(await api.host.readFile(request({ path: oversized }), new AbortController().signal))
+    expect(declined).toEqual({ path: oversized, size: 8 * 1024 * 1024 + 1, kind: 'binary', truncated: false })
+  })
+
+  it('reports a NUL-bearing head as binary without content', async () => {
+    const { api, root } = await harness()
+    // Extension-less on purpose: the dot-less arm of the mime probe.
+    const blob = join(root, 'blob')
+    writeFileSync(blob, Buffer.from([0x68, 0x69, 0x00, 0x6c, 0x6f]))
+    const read = expectOk(await api.host.readFile(request({ path: blob }), new AbortController().signal))
+    expect(read).toEqual({ path: blob, size: 5, kind: 'binary', truncated: false })
+  })
+
+  it('refuses irregular targets: devices and directories are not regular files', async () => {
+    const { api, root } = await harness()
+    // A character device opens and stats on every platform without EISDIR,
+    // pinning the not-a-regular-file arm itself.
+    const device = process.platform === 'win32' ? '\\\\.\\NUL' : '/dev/null'
+    const declined = await api.host.readFile(request({ path: device }), new AbortController().signal)
+    expect(declined.result).toMatchObject({
+      ok: false,
+      error: { code: 'file-unreadable', details: { path: device } },
+    })
+    if (declined.result.ok) throw new Error('unreachable')
+    expect(declined.result.error.message).toContain('not a regular file')
+    const dir = await api.host.readFile(request({ path: root }), new AbortController().signal)
+    expect(dir.result).toMatchObject({ ok: false, error: { code: 'file-unreadable', details: { path: root } } })
+  })
+
+  it('refuses non-qualified and missing paths with file-unreadable', async () => {
+    const { api, root } = await harness()
+    for (const path of ['', 'relative.txt', './notes.txt']) {
+      const refused = await api.host.readFile(request({ path }), new AbortController().signal)
+      expect(refused.result).toMatchObject({
+        ok: false,
+        error: { code: 'file-unreadable', details: { path } },
+      })
+      if (refused.result.ok) throw new Error('unreachable')
+      expect(refused.result.error.message).toContain('not a fully qualified path')
+    }
+    const missing = join(root, 'no-such-file.txt')
+    expect((await api.host.readFile(request({ path: missing }), new AbortController().signal)).result).toMatchObject({
+      ok: false, error: { code: 'file-unreadable', details: { path: missing } },
+    })
+  })
+
+  it('reports an abort as cancelled instead of a read failure', async () => {
+    const { api, root } = await harness()
+    const gone = new AbortController()
+    gone.abort()
+    const cancelled = await api.host.readFile(request({ path: join(root, 'no-such-file.txt') }), gone.signal)
+    expect(cancelled.result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
+  })
+
+  it('classifies fully qualified preview paths per platform (drive-less rooted Windows forms rejected)', () => {
+    expect(fullyQualifiedPath('/home/x/a.txt', 'linux')).toBe(true)
+    expect(fullyQualifiedPath('x/y.txt', 'darwin')).toBe(false)
+    expect(fullyQualifiedPath('C:\\projects\\a.txt', 'win32')).toBe(true)
+    expect(fullyQualifiedPath('\\\\server\\share\\a.txt', 'win32')).toBe(true)
+    // Rooted but drive-less: isAbsolute accepts these, yet resolution would
+    // inject the process's current drive.
+    expect(fullyQualifiedPath('\\foo', 'win32')).toBe(false)
+    expect(fullyQualifiedPath('/foo', 'win32')).toBe(false)
+    expect(fullyQualifiedPath('C:relative', 'win32')).toBe(false)
+    expect(fullyQualifiedPath('\\\\server', 'win32')).toBe(false)
   })
 })
 

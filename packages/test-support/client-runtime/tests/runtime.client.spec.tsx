@@ -379,15 +379,21 @@ describe('workspaces', () => {
 
   it('records the browse calls: listDirectory serves an empty home, createDirectory joins, stubs override', async () => {
     const runtime = await runtimeWithFrame()
-    // Defaults: an empty home level and parent/name joining.
-    await expect(runtime.workspaces.listDirectory()).resolves.toMatchObject({ path: '/home/test', entries: [] })
+    // Defaults: an empty home level and parent/name joining. Like the
+    // production face, the files window appears only when asked for.
+    const plain = await runtime.workspaces.listDirectory()
+    expect(plain).toMatchObject({ path: '/home/test', entries: [] })
+    expect(plain.files).toBeUndefined()
     await expect(runtime.workspaces.listDirectory('/home/test')).resolves.toMatchObject({ path: '/home/test' })
+    await expect(runtime.workspaces.listDirectory('/home/test', undefined, { files: true }))
+      .resolves.toMatchObject({ files: [], filesTruncated: false })
     await expect(runtime.workspaces.createDirectory('/home/test', 'fresh')).resolves.toBe('/home/test/fresh')
-    // The recorded signal seat mirrors the production face (undefined here;
-    // cancellation tests pass and observe a real one).
+    // The recorded signal/options seats mirror the production face (undefined
+    // here; cancellation tests pass and observe a real one).
     expect(runtime.workspaces.calls).toEqual([
-      { method: 'listDirectory', args: [undefined, undefined] },
-      { method: 'listDirectory', args: ['/home/test', undefined] },
+      { method: 'listDirectory', args: [undefined, undefined, undefined] },
+      { method: 'listDirectory', args: ['/home/test', undefined, undefined] },
+      { method: 'listDirectory', args: ['/home/test', undefined, { files: true }] },
       { method: 'createDirectory', args: ['/home/test', 'fresh'] },
     ])
     // Stubs replace the defaults like every sibling method.
@@ -396,10 +402,29 @@ describe('workspaces', () => {
     runtime.workspaces.stub('listDirectory', listStub)
     runtime.workspaces.stub('createDirectory', vi.fn(() => Promise.resolve('/x/made' as never)))
     const scan = new AbortController()
-    await expect(runtime.workspaces.listDirectory('/x', scan.signal)).resolves.toBe(listing)
-    // The stub receives the signal too, like the production face gives the wire.
-    expect(listStub).toHaveBeenLastCalledWith('/x', scan.signal)
+    await expect(runtime.workspaces.listDirectory('/x', scan.signal, { files: true })).resolves.toBe(listing)
+    // The stub receives the signal and options too, like the production face gives the wire.
+    expect(listStub).toHaveBeenLastCalledWith('/x', scan.signal, { files: true })
     await expect(runtime.workspaces.createDirectory('/x', 'made')).resolves.toBe('/x/made')
+    await runtime.dispose()
+  })
+
+  it('records the preview reads: readFile answers a stable text head, stubs override', async () => {
+    const runtime = await runtimeWithFrame()
+    // Default: a deterministic text head for any path.
+    await expect(runtime.workspaces.readFile('/home/test/a.ts')).resolves.toEqual({
+      path: '/home/test/a.ts', size: 17, kind: 'text', content: 'test file content', truncated: false,
+    })
+    expect(runtime.workspaces.calls).toEqual([
+      { method: 'readFile', args: ['/home/test/a.ts', undefined] },
+    ])
+    // Stubs replace the default like every sibling method, signal included.
+    const image = { path: '/x/p.png', size: 3, kind: 'image', mime: 'image/png', content: 'AA==', truncated: false }
+    const readStub = vi.fn(() => Promise.resolve(image as never))
+    runtime.workspaces.stub('readFile', readStub)
+    const preview = new AbortController()
+    await expect(runtime.workspaces.readFile('/x/p.png', preview.signal)).resolves.toBe(image)
+    expect(readStub).toHaveBeenLastCalledWith('/x/p.png', preview.signal)
     await runtime.dispose()
   })
 })
