@@ -31,6 +31,9 @@ const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => 
     'image.scrollRight': '向右滚动图片',
     'image.dropBlocked': '当前无法添加图片',
     'image.dropTitle': '图片拖动到此处即可添加',
+    'file.dropBlocked': '当前无法上传文件',
+    'file.dropTitle': '文件拖动到此处即可上传',
+    'file.dropDesc': '文件会保存到当前工作区，agent 将自行读取和解析',
   }
   if (key === 'image.remove') {
     const name = params?.name
@@ -115,6 +118,37 @@ describe('ComposerAttachments', () => {
     fireEvent.dragEnter(document.body, { dataTransfer })
     fireEvent.dragEnd(window, { dataTransfer })
     expect(view.queryByRole('status')).toBeNull()
+  })
+
+  it('routes non-image drops to workspace upload while keeping images on the image rail', () => {
+    const onAddImages = vi.fn()
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    const view = render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
+    const image = attachment('mixed-image').file
+    const file = new File(['# notes'], 'notes.md', { type: 'text/markdown' })
+    const dataTransfer = { types: ['Files'], files: [image, file], dropEffect: 'none' }
+
+    fireEvent.dragEnter(document.body, { dataTransfer })
+    expect(view.getByRole('status').textContent).toContain('文件拖动到此处即可上传')
+    fireEvent.drop(document.body, { dataTransfer })
+
+    expect(onAddImages).toHaveBeenCalledWith([image])
+    expect(onUploadFiles).toHaveBeenCalledWith([file])
+    expect(view.queryByRole('status')).toBeNull()
+  })
+
+  it('uploads a generic-only drop without calling the image path', () => {
+    const onAddImages = vi.fn()
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
+    const dataTransfer = { types: ['Files'], files: [file], dropEffect: 'none' }
+
+    fireEvent.dragEnter(document.body, { dataTransfer })
+    fireEvent.drop(document.body, { dataTransfer })
+
+    expect(onAddImages).not.toHaveBeenCalled()
+    expect(onUploadFiles).toHaveBeenCalledWith([file])
   })
 
   it('shows a blocked drop without forwarding its files', () => {

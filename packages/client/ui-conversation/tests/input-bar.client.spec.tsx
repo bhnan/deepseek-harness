@@ -90,6 +90,13 @@ interface BenchOptions {
   rightItems?: React.ReactNode
   attachments?: readonly ComposerAttachment[]
   addImages?: (files: readonly File[]) => string | null
+  uploadFiles?: (files: readonly File[]) => Promise<readonly {
+    path: string
+    name: string
+    bytes: number
+    sha256: string
+    mediaType?: string
+  }[]>
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
   toggleCommandMenu?: (selection: { start: number; end: number }) => void
@@ -171,6 +178,7 @@ function bench(over?: BenchOptions) {
     inputActions: shell.actions,
     keyboard: shell,
     addImages: over?.addImages ?? (() => null),
+    uploadFiles: over?.uploadFiles,
     removeImage,
     draftImages: ids => ids.flatMap((id) => {
       const attachment = over?.attachments?.find(candidate => candidate.id === id)
@@ -249,6 +257,66 @@ describe('image draft rail', () => {
     })
     expect(addImages).toHaveBeenCalledWith([image])
     expect(shell.snapshot.draft).toBe('同时粘贴的文字')
+  })
+
+  it('uploads pasted non-image files and inserts a path-only workspace mention', async () => {
+    const uploadFiles = vi.fn(async (files: readonly File[]) => [{
+      path: 'uploads/notes.md',
+      name: files[0]?.name ?? 'notes.md',
+      bytes: 7,
+      sha256: '0'.repeat(64),
+      mediaType: 'text/markdown',
+    }])
+    const result = bench({ uploadFiles })
+    const file = new File(['# notes'], 'notes.md', { type: 'text/markdown' })
+
+    fireEvent.paste(result.textarea, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'text/markdown', getAsFile: () => file }],
+        getData: () => '',
+      },
+    })
+    await act(async () => {})
+
+    expect(uploadFiles).toHaveBeenCalledWith([file])
+    expect(result.shell.snapshot.draft).toBe('@uploads/notes.md ')
+  })
+
+  it('quotes uploaded workspace paths that contain spaces', async () => {
+    const uploadFiles = vi.fn(async () => [{
+      path: 'uploads/design notes.md',
+      name: 'design notes.md',
+      bytes: 1,
+      sha256: '0'.repeat(64),
+    }])
+    const result = bench({ uploadFiles })
+    const file = new File(['x'], 'design notes.md', { type: 'text/markdown' })
+
+    act(() => {
+      attachmentOwner(result.slotCalls).onUploadFiles?.([file])
+    })
+    await act(async () => {})
+
+    expect(result.shell.snapshot.draft).toBe('@"uploads/design notes.md" ')
+  })
+
+  it('keeps the draft and surfaces a toast when workspace upload fails', async () => {
+    const uploadFiles = vi.fn(async () => {
+      throw new Error('offline')
+    })
+    const result = bench({ uploadFiles, draft: 'keep this draft' })
+    const file = new File(['x'], 'notes.md', { type: 'text/markdown' })
+
+    fireEvent.paste(result.textarea, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'text/markdown', getAsFile: () => file }],
+        getData: () => '',
+      },
+    })
+    await act(async () => {})
+
+    expect(result.shell.snapshot.draft).toBe('keep this draft')
+    expect(result.view.getByRole('alert').textContent).toContain('文件上传失败')
   })
 
   it('pre-checks projected limits at intake: whole-batch refusal with product copy, none added', () => {

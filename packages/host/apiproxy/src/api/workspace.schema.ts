@@ -112,6 +112,6 @@ export const workspaceUploadFileValueSchema = z.object({
   path: z.string(),
   name: z.string(),
   bytes: z.number().int().nonnegative(),
-  sha256: z.string().length(64),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/u),
   mediaType: z.string().optional(),
 }) satisfies z.ZodType<Wire<ResponseValue<'workspace.uploadFile'>>>

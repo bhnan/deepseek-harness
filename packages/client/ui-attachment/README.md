@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Dynamic attachment presentation plugin for the conversation UI. It waits for the conversation package's `conversation.input.attachments` and `conversation.message.images` declarations through `ctx.slots.inject`, then registers the composer draft-image rail, document drop target, chat-history image gallery, and original-image lightbox. The conversation slot owner supplies attachment data, image loading, callbacks, and its namespace translator; presentation components remain pure props and are not exported from the package entry.
+Dynamic attachment presentation plugin for the conversation UI. It waits for the conversation package's `conversation.input.attachments` and `conversation.message.images` declarations through `ctx.slots.inject`, then registers the composer draft-image rail, document drop target, workspace-file upload handoff, chat-history image gallery, and original-image lightbox. The conversation slot owner supplies attachment data, image loading, callbacks, and its namespace translator; presentation components remain pure props and are not exported from the package entry.
 
 ## Attachment rail
 
@@ -16,6 +16,10 @@ Dynamic attachment presentation plugin for the conversation UI. It waits for the
 
 `DropOverlay` is the full-viewport invitation shown while a file drag is over the page: illustration, title, and a limits line while drops are accepted (`disabled` swaps the blocked illustration and hides the limits line). The layer is pointer-inert — the owner's document-level drag listeners keep the enter/leave count and decide accept/reject; the overlay only shows state. It portals to the body like the lightbox.
 
+## Workspace files
+
+When the owner supplies `onUploadFiles`, dropped or pasted non-image files are forwarded to that callback while images continue through `onAddImages`. The owner persists each file in the active workspace and may insert a path-only `@file` reference; this package renders no generic-file preview or history card and does not parse file contents.
+
 ## Model Experience
 
 None, as the plugin only renders attachment state supplied by the conversation UI and contributes no model-visible input.
@@ -26,6 +30,6 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **Images only** — non-image files have no rail card or history renderer yet; DeepSeek Chat-style file cards and upload-progress states wait until the composer accepts non-image attachments.
+- **No generic-file presentation** — workspace uploads are stored and referenced through the owner, but this package has no generic-file rail card, history renderer, upload progress, or inline parser.
 - **No zoom or download in the lightbox** — the preview renders the original at fit-to-viewport size only.
 - **The lightbox does not trap focus** — it sets `aria-modal` and restores focus on close, but Tab can reach the page behind it.

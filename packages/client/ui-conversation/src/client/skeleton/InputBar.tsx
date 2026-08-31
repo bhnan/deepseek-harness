@@ -9,9 +9,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
+import { formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 import {
   IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { WorkspaceFileUpload } from '@deepseek-ai/dsh-client-connection/client'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
 import type {} from '@deepseek-ai/dsh-plan-mode/client'
@@ -77,7 +79,7 @@ function editRangeOf(pending: PendingEdit | null, prevLength: number, nextLength
 export type InputBarProps = ComposerBarProps
 
 export function InputBar({
-  useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
+  useSession, useInput, inputActions, keyboard, addImages, uploadFiles, removeImage, draftImages,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
@@ -483,7 +485,7 @@ export function InputBar({
       .filter(item => item.kind === 'file')
       .map(item => item.getAsFile())
       .filter((file): file is File => file !== null)
-    if (files.length > 0) intakeImages(files)
+    if (files.length > 0) intakeFiles(files)
     const text = e.clipboardData.getData('text/plain')
     if (text === '') {
       if (files.length > 0) e.preventDefault()
@@ -534,7 +536,47 @@ export function InputBar({
     if (rejected !== null) showToast(rejected)
   }, [addImages, attachments, imageLimits, showToast, t])
 
-  const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
+  const insertUploadedFiles = useCallback((uploads: readonly WorkspaceFileUpload[]): void => {
+    if (keyboard === undefined || uploads.length === 0) return
+    const mentions = uploads.map(upload => formatFileMention({ path: upload.path, kind: 'file' }, false))
+    if (mentions.some(mention => mention === undefined)) {
+      showToast(t('file.invalidPath'))
+      return
+    }
+    const text = `${mentions.join(' ')} `
+    const currentDraft = keyboard.snapshot.draft
+    const element = inputRef.current
+    const selection = element === null ? { start: currentDraft.length, end: currentDraft.length } : selectionOf(element)
+    const start = Math.min(selection.start, currentDraft.length)
+    const end = Math.min(Math.max(start, selection.end), currentDraft.length)
+    const next = currentDraft.slice(0, start) + text + currentDraft.slice(end)
+    const caret = start + text.length
+    keyboard.setDraft(next, { start, end, insertedLength: text.length })
+    if (element !== null) restoreCaret(element, caret)
+    keyboard.track(next, caret)
+  }, [keyboard, showToast, t])
+
+  const uploadWorkspaceFiles = useCallback((files: readonly File[]): Promise<void> => {
+    if (uploadFiles === undefined || files.length === 0) return Promise.resolve()
+    return uploadFiles(files).then(insertUploadedFiles).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error)
+      showToast(t('file.uploadFailed', { reason }))
+    })
+  }, [insertUploadedFiles, showToast, t, uploadFiles])
+
+  const intakeFiles = useCallback((files: readonly File[]): void => {
+    if (files.length === 0) return
+    if (uploadFiles === undefined) {
+      intakeImages(files)
+      return
+    }
+    const images = files.filter(file => file.type.startsWith('image/'))
+    const workspaceFiles = files.filter(file => !file.type.startsWith('image/'))
+    if (images.length > 0) intakeImages(images)
+    if (workspaceFiles.length > 0) void uploadWorkspaceFiles(workspaceFiles)
+  }, [intakeImages, uploadFiles, uploadWorkspaceFiles])
+
+  const canAcceptDrop = !locked && !machineBusy && (addImages !== undefined || uploadFiles !== undefined)
 
   const onSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>): void => {
     // Any caret/selection gesture ends a live paste attempt (the machine
@@ -711,6 +753,7 @@ export function InputBar({
           attachments,
           canAcceptDrop,
           onAddImages: intakeImages,
+          ...uploadFiles === undefined ? {} : { onUploadFiles: uploadWorkspaceFiles },
           onRemoveImage: (id) => { removeImage?.(id) },
           dropLimits: imageLimits === undefined ? undefined : {
             count: imageLimits.maxImagesPerMessage,

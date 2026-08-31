@@ -1,5 +1,7 @@
 # Workspace File Upload Design
 
+English | [中文](2026-08-31-workspace-file-upload-design.zh.md)
+
 ## Goal
 
 Allow the Web composer to accept a dragged non-image file, store it inside the active workspace, and put a path-only `@file` mention into the draft so the existing agent file tools can inspect it.

@@ -16,7 +16,7 @@ interface ComposerRailItem extends AttachmentRailItem {
 
 /** Draft-image rail, document drop target, and original-image preview slot entry. */
 export function ComposerAttachments({
-  attachments, canAcceptDrop, onAddImages, onRemoveImage, dropLimits, t,
+  attachments, canAcceptDrop, onAddImages, onUploadFiles, onRemoveImage, dropLimits, t,
 }: ComposerAttachmentsProps) {
   const [preview, setPreview] = useState<ComposerAttachment | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -62,7 +62,19 @@ export function ComposerAttachments({
       if (dataTransfer === null) return
       event.preventDefault()
       reset()
-      if (canAcceptDrop) onAddImages([...dataTransfer.files])
+      if (!canAcceptDrop) return
+      const files = [...dataTransfer.files]
+      const images = files.filter(file => file.type.startsWith('image/'))
+      const workspaceFiles = files.filter(file => !file.type.startsWith('image/'))
+      if (images.length > 0) onAddImages(images)
+      if (workspaceFiles.length > 0) {
+        if (onUploadFiles === undefined) onAddImages(workspaceFiles)
+        else void onUploadFiles(workspaceFiles).catch(() => {
+          // The owner surfaces the error through its own toast; the slot must
+          // still consume the rejected promise so a transport failure is not
+          // reported as an unhandled browser exception.
+        })
+      }
     }
     document.addEventListener('dragenter', onDragEnter)
     document.addEventListener('dragover', onDragOver)
@@ -76,7 +88,7 @@ export function ComposerAttachments({
       document.removeEventListener('drop', onDrop)
       window.removeEventListener('dragend', reset)
     }
-  }, [canAcceptDrop, onAddImages])
+  }, [canAcceptDrop, onAddImages, onUploadFiles])
 
   const railItems = useMemo<ComposerRailItem[]>(() => attachments.map(attachment => ({
     id: attachment.id,
@@ -91,7 +103,7 @@ export function ComposerAttachments({
       {dragActive && (
         <DropOverlay
           disabled={!canAcceptDrop}
-          labels={dropOverlayLabels(t, canAcceptDrop, dropLimits)}
+          labels={dropOverlayLabels(t, canAcceptDrop, dropLimits, onUploadFiles !== undefined)}
         />
       )}
       {railItems.length > 0 && (

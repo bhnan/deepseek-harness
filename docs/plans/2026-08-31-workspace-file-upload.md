@@ -1,5 +1,7 @@
 # Workspace File Upload Implementation Plan
 
+English | [中文](2026-08-31-workspace-file-upload.zh.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a bounded, authenticated workspace-file upload path to the Web composer while preserving the existing image attachment pipeline and leaving parsing to the agent.

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-对话 UI 的动态附件呈现插件。它通过 `ctx.slots.inject` 等待 conversation 包声明 `conversation.input.attachments` 与 `conversation.message.images`，随后注册输入框草稿图片栏、文档拖放目标、聊天历史图片画廊和原图灯箱。conversation slot 持有方提供附件数据、图片加载、回调及其命名空间翻译器；呈现组件保持纯 props，且不从包入口导出。
+对话 UI 的动态附件呈现插件。它通过 `ctx.slots.inject` 等待 conversation 包声明 `conversation.input.attachments` 与 `conversation.message.images`，随后注册输入框草稿图片栏、文档拖放目标、工作区文件上传转接、聊天历史图片画廊和原图灯箱。conversation slot 持有方提供附件数据、图片加载、回调及其命名空间翻译器；呈现组件保持纯 props，且不从包入口导出。
 
 ## 附件栏
 
@@ -16,6 +16,10 @@
 
 `DropOverlay` 是文件拖拽悬停页面时的全视口邀请层：插画、标题，接受拖放时再加一行上限说明（`disabled` 换为禁用插画并隐藏上限行）。该层不接收指针事件——持有方的 document 级拖拽监听器负责 enter/leave 计数和接受与否的判定；遮罩只呈现状态。与灯箱一样经 body portal 渲染。
 
+## 工作区文件
+
+持有方提供 `onUploadFiles` 时，拖入或粘贴的非图片文件会转交该回调，图片仍经 `onAddImages` 处理。持有方将文件持久化到当前工作区，并可插入仅包含路径的 `@file` 引用；本包不渲染通用文件预览或历史卡片，也不解析文件内容。
+
 ## 模型体验
 
 无，因为该插件只渲染由对话 UI 提供的附件状态，不贡献模型可见输入。
@@ -26,6 +30,6 @@
 
 ## 已知限制与暂缓事项
 
-- **仅支持图片** — 非图片文件尚无附件栏卡片与历史渲染；DeepSeek Chat 风格的文件卡片和上传进度状态等输入框接受非图片附件后再做。
+- **不提供通用文件呈现** — 工作区上传由持有方存储并创建引用，但本包没有通用文件附件栏卡片、历史渲染、上传进度或行内解析器。
 - **灯箱无缩放与下载** — 预览仅以适配视口的尺寸渲染原图。
 - **灯箱不锁定焦点** — 它设置 `aria-modal` 并在关闭时归还焦点，但 Tab 仍可移动到背后的页面。

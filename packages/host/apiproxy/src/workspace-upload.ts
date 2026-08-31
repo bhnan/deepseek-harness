@@ -85,6 +85,7 @@ function sanitizeUploadName(raw: string): string {
   const safe = trimmed
     .replace(/[\\/]/gu, '_')
     .replace(/[\u0000-\u001f\u007f-\u009f]/gu, '_')
+    .replace(/"/gu, '_')
     .normalize('NFC')
     .slice(0, 240)
   if (safe === '' || safe === '.' || safe === '..') {

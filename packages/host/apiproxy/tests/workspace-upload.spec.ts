@@ -85,11 +85,11 @@ describe('saveWorkspaceUpload', () => {
     const data = new TextEncoder().encode('safe')
 
     const result = await saveWorkspaceUpload(root, {
-      name: '../nested\\report\u0000.txt',
+      name: '../nested\\report"\u0000.txt',
       data: Buffer.from(data).toString('base64'),
     })
 
-    expect(result.path).toMatch(/^uploads\/[.]{2}_nested_report_\.txt$/u)
+    expect(result.path).toMatch(/^uploads\/[.]{2}_nested_report__\.txt$/u)
     expect(await readFile(join(root, result.path))).toEqual(Buffer.from(data))
     expect(await readFile(join(root, '..', result.name)).catch(() => null)).toBeNull()
   })

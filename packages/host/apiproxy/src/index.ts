@@ -60,7 +60,9 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
-  /** Maximum decoded bytes accepted by one workspace file upload. */
+  /** Maximum decoded bytes accepted by one workspace file upload.
+   * @default 33554432
+   */
   workspaceUploadMaxBytes?: number
 }
 

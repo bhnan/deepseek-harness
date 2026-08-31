@@ -220,6 +220,7 @@ function mount(
           inputActions={inputActions}
           keyboard={wiring}
           addImages={() => null}
+          uploadFiles={undefined}
           removeImage={() => {}}
           draftImages={() => []}
           resolveSubmitMode={() => 'queue'}

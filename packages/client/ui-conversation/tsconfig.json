@@ -57,6 +57,9 @@
       "path": "../../todo/tool-todo"
     },
     {
+      "path": "../../context/file-reference"
+    },
+    {
       "path": "../ui-input-trigger"
     },
     {

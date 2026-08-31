@@ -1,8 +1,9 @@
 /** Registers the conversation components, shared store, and service callbacks. */
 import type { Context } from '@deepseek-ai/cordis'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { resolveSlotLabel, type BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  resolveWorkspacePath, type ISessions, type SessionId,
+  resolveWorkspacePath, type ClientContext, type ISessions, type SessionId,
 } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the ctx.settingsScope Context merge. Cross-plugin collaboration
 // goes through the service, never a value import (client bundle purity gate).
@@ -75,6 +76,16 @@ const ABSENT_MENU_LAUNCHER = {
   subscribe: () => () => {},
 }
 
+/** Encode browser bytes for the JSON upload carrier without overflowing the call stack. */
+function base64Of(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return globalThis.btoa(binary)
+}
+
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
     turnData: ({ useSession }, nodeKey) => function useTurnData(key) {
@@ -112,9 +123,10 @@ function selectApproval({ interactions }: ComposerChainProps): ApprovalWait | nu
 /** Mounts the conversation plugin.
  * @param ctx - Client root context.
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: ClientContext): void {
   const sessions = ctx.sessions
   const workspaces = ctx.workspaces
+  const connection = ctx.get('connection') as ConnectionHandle
   const layout = ctx.layout
   const slots = ctx.slots
 
@@ -293,6 +305,7 @@ export function apply(ctx: Context): void {
         return {
           keyboard: undefined,
           addImages: undefined,
+          uploadFiles: undefined,
           removeImage: undefined,
           draftImages: undefined,
           resolveSubmitMode: (running, gesture, steeringAvailable) =>
@@ -323,6 +336,26 @@ export function apply(ctx: Context): void {
             }
             return error instanceof Error ? error.message : String(error)
           }
+        },
+        uploadFiles: async (files) => {
+          const workspaceId = workspaces.list.getSnapshot().items.find(
+            workspace => workspace.sessionIds.includes(sessionId),
+          )?.workspaceId
+          if (workspaceId === undefined) {
+            throw new Error('当前会话没有关联工作区，无法上传文件')
+          }
+          return Promise.all(files.map(async (file) => {
+            const response = await connection.api.workspace.uploadFile({
+              workspaceId,
+              name: file.name,
+              data: base64Of(new Uint8Array(await file.arrayBuffer())),
+              ...(file.type === '' ? {} : { mediaType: file.type }),
+            })
+            if (!response.result.ok) {
+              throw new Error(response.result.error.message)
+            }
+            return response.result.value
+          }))
         },
         removeImage: (id) => {
           conversation.releaseDraftImage(id)

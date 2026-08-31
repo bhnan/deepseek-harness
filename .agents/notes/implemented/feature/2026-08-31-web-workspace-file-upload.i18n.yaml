@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-web-workspace-file-upload.md
+2026-08-31-web-workspace-file-upload.md: 03649c3a802dcd6842f53b2300467ed872469d2e
+2026-08-31-web-workspace-file-upload.zh.md: cccd0a3b96e5ca7dd705b434a25fa55269d5093a

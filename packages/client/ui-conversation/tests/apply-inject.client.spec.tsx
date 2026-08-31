@@ -47,7 +47,25 @@ function sessionFakeFor() {
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
-  runtime.provide('connection', { api: { settings: {} }, isLoopback: false })
+  const uploadFile = vi.fn(async (payload: {
+    workspaceId: string
+    name: string
+    mediaType?: string
+    data: string
+  }) => ({
+    rpcId: 'upload-test' as never,
+    result: {
+      ok: true as const,
+      value: {
+        path: `uploads/${payload.name}`,
+        name: payload.name,
+        bytes: Math.floor(payload.data.length * 3 / 4),
+        sha256: '0'.repeat(64),
+        ...(payload.mediaType === undefined ? {} : { mediaType: payload.mediaType }),
+      },
+    },
+  }))
+  runtime.provide('connection', { api: { settings: {}, workspace: { uploadFile } }, isLoopback: false })
   // The plugin injects both; these specs exercise no settings path.
   runtime.provide('remote', { $on: () => () => {} })
   runtime.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
@@ -124,7 +142,7 @@ async function bench() {
   return {
     runtime, feature, slots: runtime.slots, entryOf,
     conversationApi, conversationHeaderApi, residentApi, composerApi, chatViewApi, inputApi,
-    sessionFake, layoutFake,
+    sessionFake, layoutFake, uploadFile,
   }
 }
 
@@ -217,6 +235,39 @@ describe('conversation slot inject API', () => {
     const stop = injectFn(ROOT).stop!
     await b.feature.dispose()
     expect(() => { stop() }).toThrow(/unavailable through the session scope/)
+    await b.runtime.dispose()
+  })
+
+  it('uploads browser bytes through the active Workspace and returns host metadata', async () => {
+    const b = await bench()
+    await b.runtime.workspaces.update((state) => {
+      state.items = [{
+        workspaceId: 'workspace-1' as never,
+        path: '/proj',
+        title: 'proj',
+        sessionIds: [ROOT],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }]
+    })
+    const file = new File([Uint8Array.of(1, 2, 3)], 'notes.md', { type: 'text/markdown' })
+
+    const result = await b.composerApi(ROOT).uploadFiles!([file])
+
+    expect(result).toMatchObject([{ path: 'uploads/notes.md', name: 'notes.md', mediaType: 'text/markdown' }])
+    expect(b.uploadFile).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1', name: 'notes.md', mediaType: 'text/markdown', data: 'AQID',
+    })
+    await b.runtime.dispose()
+  })
+
+  it('rejects workspace uploads when the active Session has no Workspace', async () => {
+    const b = await bench()
+    const file = new File(['orphan'], 'orphan.txt', { type: 'text/plain' })
+
+    await expect(b.composerApi(ROOT).uploadFiles!([file]))
+      .rejects.toThrow('当前会话没有关联工作区')
+    expect(b.uploadFile).not.toHaveBeenCalled()
     await b.runtime.dispose()
   })
 
