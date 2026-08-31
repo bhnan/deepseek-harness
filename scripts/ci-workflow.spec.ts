@@ -37,6 +37,14 @@ describe('CI workflow', () => {
     expect(assemble.run).toContain('installer_version="${source_version}-bhn.${PRIVATE_VERSION}"')
     expect(assemble.run).toContain('--source-version "$source_version"')
     expect(assemble.run).toContain('--version "$installer_version"')
+    const uploadPayload: unknown = steps.find(step => isRecord(step) && step.name === 'Verify workspace upload payload')
+    expect(uploadPayload).toMatchObject({ shell: 'bash' })
+    if (!isRecord(uploadPayload) || typeof uploadPayload.run !== 'string') {
+      throw new TypeError('workspace upload payload verification must define a run script')
+    }
+    expect(uploadPayload.run).toContain('workspace-upload.js')
+    expect(uploadPayload.run).toContain('saveWorkspaceUpload')
+    expect(uploadPayload.run).toContain('uploadFiles')
     const smoke: unknown = steps.find(step => isRecord(step) && step.name === 'Verify packed installer')
     expect(smoke).toMatchObject({ shell: 'bash' })
     if (!isRecord(smoke) || typeof smoke.run !== 'string') throw new TypeError('packed installer smoke must define a run script')

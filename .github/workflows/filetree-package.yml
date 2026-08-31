@@ -57,6 +57,19 @@ jobs:
           pnpm run release:pack --family vendor --out dist/npm-vendor
           pnpm --dir native/landlock-run run build:ts
           pnpm --dir native/landlock-run/packages/entry pack --pack-destination "$PWD/dist/npm-landlock"
+      - name: Verify workspace upload payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          host_tarballs=(dist/npm/deepseek-ai-dsh-host-apiproxy-*.tgz)
+          conversation_tarballs=(dist/npm/deepseek-ai-dsh-client-ui-conversation-*.tgz)
+          test "${#host_tarballs[@]}" -eq 1
+          test "${#conversation_tarballs[@]}" -eq 1
+          tar -tzf "${host_tarballs[0]}" | grep -F 'package/lib/types/workspace-upload.js'
+          tar -xOzf "${host_tarballs[0]}" package/lib/index.js > "$RUNNER_TEMP/dsh-host-apiproxy.js"
+          grep -F 'saveWorkspaceUpload' "$RUNNER_TEMP/dsh-host-apiproxy.js"
+          tar -xOzf "${conversation_tarballs[0]}" package/lib/client.js > "$RUNNER_TEMP/dsh-client-ui-conversation.js"
+          grep -F 'uploadFiles' "$RUNNER_TEMP/dsh-client-ui-conversation.js"
       - name: Assemble installer staging
         env:
           PRIVATE_VERSION: ${{ inputs.private_version || '0.1' }}
