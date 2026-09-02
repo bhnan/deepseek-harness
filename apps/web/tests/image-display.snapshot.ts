@@ -164,6 +164,9 @@ it('accepts a whole-page drop under the file-upload overlay and refuses an over-
   const overlay = await screen.findByRole('status')
   expect(overlay.textContent).toContain('Drag files here to upload them')
   expect(overlay.textContent).toContain('Files are saved to the current workspace for the agent to read and parse')
+  await waitFor(() => {
+    expect(overlay.textContent).toContain('Up to 20 images, 5MB each')
+  })
 
   // Dropping on the transcript area (not the composer card) lands in the rail.
   fireEvent.drop(document.body, { dataTransfer })
