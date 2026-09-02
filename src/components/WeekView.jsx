@@ -168,6 +168,7 @@ export default function WeekView({ boot, semester, week, setWeek, notify, onData
             const isToday = todayInView && d === today;
             const dayCells = periodNos.map((p) => cellsByKey.get(cellKey(swd, p))).filter(Boolean);
             const dayHasCourses = (dayCells || []).some((c) => !c.temp && contentFor(c));
+            const dayHasFixedCells = (dayCells || []).some((c) => !c.temp);
             const daySuspendedCount = periodNos.filter((p) => suspendedKeys.has(cellKey(swd, p))).length;
             return (
               <div key={wd} className={`week-head-cell ${isToday ? 'today' : ''} ${h ? 'holiday' : wd >= 6 ? 'weekend' : ''} ${mk ? 'makeup' : ''}`}>
@@ -175,26 +176,27 @@ export default function WeekView({ boot, semester, week, setWeek, notify, onData
                   <span className="head-week">第{week}周</span>
                   {WEEKDAY_CN[wd - 1]} {d ? formatMD(d) : ''}
                   {/* 教学日（工作日或调休补课日，非法定节假日）一律显示整天停课入口；
-                      当天没有任何已填写内容的课且无停课标记时禁用（无内容可顺延），避免误以为停课状态缺失 */}
+                      当天没有任何固定排课且无停课标记时才禁用（未填内容的课也可停课，
+                      服务端对空课时位仅建停课标记、不触发顺延） */}
                   {!h && (wd <= 5 || mk) && (
                     <button className={`day-defer-btn ${daySuspendedCount > 0 ? 'susp-on' : ''}`}
-                      disabled={!dayHasCourses && daySuspendedCount === 0}
-                      title={!dayHasCourses && daySuspendedCount === 0
-                        ? '当天暂无已填写内容的课，无需停课（填写授课内容后可整日停课）'
-                        : (daySuspendedCount > 0 ? '当天已标记停课：点击可全部恢复上课（内容回到原位）' : '当天停课标记：点击把当天所有班有内容的课标记为停课（自动顺延，取消时恢复原位）')}
+                      disabled={!dayHasFixedCells && daySuspendedCount === 0}
+                      title={!dayHasFixedCells && daySuspendedCount === 0
+                        ? '当天没有固定排课，无需停课'
+                        : (daySuspendedCount > 0 ? '当天已标记停课：点击可全部恢复上课（内容回到原位）' : '当天停课标记：点击把当天所有班的课标记为停课（自动顺延，取消时恢复原位）')}
                       onClick={async (e) => {
                         e.stopPropagation();
                         const suspendAll = daySuspendedCount === 0;
-                        if (suspendAll && !confirm(`确认将 ${d} 当天所有班有内容的课标记为停课？\n（格子变红提示停课，课程数据保留；学校改主意了再点一次即可全部恢复）`)) return;
+                        if (suspendAll && !confirm(`确认将 ${d} 当天所有班的课标记为停课？\n（格子变红提示停课，课程数据保留；学校改主意了再点一次即可全部恢复）`)) return;
                         try {
                           let done = 0;
                           if (suspendAll) {
-                            // 标记停课：遍历当前有内容的固定课（含未在 cellsByKey 的已停课格）
+                            // 标记停课：遍历当天全部固定排课格（无论内容是否已填；空内容格服务端仅建标记不顺延）
                             for (const p of periodNos) {
                               const k = cellKey(swd, p);
                               if (suspendedKeys.has(k)) continue;
                               const c = cellsByKey.get(k);
-                              if (!c || c.temp || !contentFor(c)) continue;
+                              if (!c || c.temp) continue;
                               try { await api.addSuspension(semester.id, { class_id: c.class_id, week, weekday: swd, period: p }); done++; } catch { /* already */ }
                             }
                           } else {
