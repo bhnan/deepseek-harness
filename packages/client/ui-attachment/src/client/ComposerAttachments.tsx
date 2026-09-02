@@ -6,7 +6,8 @@ import { AttachmentRail } from '../AttachmentRail.tsx'
 import type { AttachmentRailItem } from '../AttachmentRail.tsx'
 import { DropOverlay } from '../DropOverlay.tsx'
 import { ImageLightbox } from '../ImageLightbox.tsx'
-import { attachmentRailLabels, dropOverlayLabels, lightboxLabels } from './labels.ts'
+import { FilePicker } from './FilePicker.tsx'
+import { attachmentRailLabels, dropOverlayLabels, filePickerLabels, lightboxLabels } from './labels.ts'
 import css from './ComposerAttachments.module.css'
 
 /** Rail item retaining its browser-owned attachment for callbacks. */
@@ -22,6 +23,27 @@ export function ComposerAttachments({
   const [dragActive, setDragActive] = useState(false)
   const dragDepth = useRef(0)
   const closePreview = useCallback(() => { setPreview(null) }, [])
+
+  const intakeFiles = useCallback((files: readonly File[]): void | Promise<void> => {
+    const images = files.filter(file => file.type.startsWith('image/'))
+    const workspaceFiles = files.filter(file => !file.type.startsWith('image/'))
+    if (images.length > 0) onAddImages(images)
+    if (workspaceFiles.length === 0) return
+    if (onUploadFiles === undefined) {
+      onAddImages(workspaceFiles)
+      return
+    }
+    return onUploadFiles(workspaceFiles)
+  }, [onAddImages, onUploadFiles])
+
+  const consumeIntake = useCallback((files: readonly File[]): void => {
+    const result = intakeFiles(files)
+    if (result !== undefined) void result.catch(() => {
+      // The owner surfaces the error through its own toast; the slot must
+      // still consume the rejected promise so a transport failure is not
+      // reported as an unhandled browser exception.
+    })
+  }, [intakeFiles])
 
   useEffect(() => {
     if (preview !== null && !attachments.some(attachment => attachment.id === preview.id)) setPreview(null)
@@ -64,17 +86,7 @@ export function ComposerAttachments({
       reset()
       if (!canAcceptDrop) return
       const files = [...dataTransfer.files]
-      const images = files.filter(file => file.type.startsWith('image/'))
-      const workspaceFiles = files.filter(file => !file.type.startsWith('image/'))
-      if (images.length > 0) onAddImages(images)
-      if (workspaceFiles.length > 0) {
-        if (onUploadFiles === undefined) onAddImages(workspaceFiles)
-        else void onUploadFiles(workspaceFiles).catch(() => {
-          // The owner surfaces the error through its own toast; the slot must
-          // still consume the rejected promise so a transport failure is not
-          // reported as an unhandled browser exception.
-        })
-      }
+      consumeIntake(files)
     }
     document.addEventListener('dragenter', onDragEnter)
     document.addEventListener('dragover', onDragOver)
@@ -88,7 +100,7 @@ export function ComposerAttachments({
       document.removeEventListener('drop', onDrop)
       window.removeEventListener('dragend', reset)
     }
-  }, [canAcceptDrop, onAddImages, onUploadFiles])
+  }, [canAcceptDrop, consumeIntake])
 
   const railItems = useMemo<ComposerRailItem[]>(() => attachments.map(attachment => ({
     id: attachment.id,
@@ -106,16 +118,25 @@ export function ComposerAttachments({
           labels={dropOverlayLabels(t, canAcceptDrop, dropLimits, onUploadFiles !== undefined)}
         />
       )}
-      {railItems.length > 0 && (
-        <div className={css.rail}>
-          <AttachmentRail
-            items={railItems}
-            labels={attachmentRailLabels(t)}
-            onOpen={(item) => { setPreview(item.attachment) }}
-            onRemove={(item) => { onRemoveImage(item.attachment.id) }}
+      <div className={css.rail}>
+        <div className={css.picker}>
+          <FilePicker
+            disabled={!canAcceptDrop}
+            labels={filePickerLabels(t)}
+            onFiles={intakeFiles}
           />
         </div>
-      )}
+        {railItems.length > 0 && (
+          <div className={css.images}>
+            <AttachmentRail
+              items={railItems}
+              labels={attachmentRailLabels(t)}
+              onOpen={(item) => { setPreview(item.attachment) }}
+              onRemove={(item) => { onRemoveImage(item.attachment.id) }}
+            />
+          </div>
+        )}
+      </div>
       {preview !== null && (
         <ImageLightbox
           src={preview.previewUrl}

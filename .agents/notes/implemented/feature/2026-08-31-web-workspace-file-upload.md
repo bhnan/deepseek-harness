@@ -22,6 +22,7 @@ The storage helper never replaces an existing path. A same-content collision reu
 
 - Dragging or pasting images behaves as before, including image limits, previews, send admission, and history rendering.
 - Dragging or pasting non-image files stores them below the active Workspace's `uploads/` directory and inserts a path-only mention such as `@uploads/report.pdf`.
+- The attachment picker offers general-file and photo inputs; both picker selections and document drops partition files by declared MIME type, so images use the image path and non-image files use the Workspace upload path.
 - Mixed input partitions images and non-image files independently, so a generic file does not enter the image rail.
 - An upload failure shows the existing composer toast path and leaves the draft text unchanged; a successful upload inserts mentions in upload order at the current selection.
 - A missing active Workspace is rejected locally; the RPC still requires the deployment's existing authentication and Workspace authorization.
@@ -32,7 +33,7 @@ The storage helper never replaces an existing path. A same-content collision reu
 
 ## Client boundary
 
-`ui-attachment` only partitions the document drop and forwards generic files through its optional `onUploadFiles` owner callback. `ui-conversation` resolves the Workspace by the active Session's membership, reads browser bytes, calls the API, and formats the returned relative path with the shared file-reference grammar. The grammar rejects control characters and quotes, so the Host sanitizes those filename characters before returning a path that can be inserted safely.
+`ui-attachment` partitions native-picker selections and document drops by declared image MIME type, then forwards generic files through its optional `onUploadFiles` owner callback. `ui-conversation` resolves the Workspace by the active Session's membership, reads browser bytes, calls the API, and formats the returned relative path with the shared file-reference grammar. The grammar rejects control characters and quotes, so the Host sanitizes those filename characters before returning a path that can be inserted safely.
 
 ## Alternatives considered
 
@@ -62,4 +63,4 @@ Rejected because parsing is content- and agent-dependent, would add latency and 
 
 ## Verification
 
-Host tests cover strict base64 validation, empty files, decoded size limits, filename/path safety, private upload-directory handling, symlink refusal, deterministic collisions, RPC dispatch, unknown Workspaces, and business-error mapping. Client tests cover mixed drop routing, generic-only drops, pasted-file upload, path insertion including quoted paths, and API byte encoding. The dedicated worktree runs the focused host and client suites plus the assembled GUI/Web regression before this branch is handed back.
+Host tests cover strict base64 validation, empty files, decoded size limits, filename/path safety, private upload-directory handling, symlink refusal, deterministic collisions, RPC dispatch, unknown Workspaces, and business-error mapping. Client tests cover native-picker and mixed-drop routing, generic-only drops, pasted-file upload, path insertion including quoted paths, and API byte encoding. The dedicated worktree runs the focused host and client suites plus the assembled GUI/Web regression before this branch is handed back.

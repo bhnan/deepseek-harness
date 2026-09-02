@@ -1,4 +1,29 @@
 .rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   padding: 4px 12px 0;
+}
+
+/* Keep the trigger visible at the rail edge while the image scrollport takes
+   only the remaining width of the composer card. */
+.picker {
+  flex: 0 0 auto;
+}
+
+.images {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .rail {
+    gap: 4px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
 }

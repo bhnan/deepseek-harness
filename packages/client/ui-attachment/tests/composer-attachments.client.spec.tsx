@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, within } from '@testing-library/react'
 import type {
   ComposerAttachment, ComposerAttachmentsOwnerProps, ComposerAttachmentsProps,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -34,6 +34,12 @@ const t = ((key: string, params?: Readonly<Record<string, unknown>>): string => 
     'file.dropBlocked': '当前无法上传文件',
     'file.dropTitle': '文件拖动到此处即可上传',
     'file.dropDesc': '文件会保存到当前工作区，agent 将自行读取和解析',
+    'file.attach': '添加附件',
+    'file.attachDialog': '添加附件',
+    'file.chooseFile': '选择文件',
+    'file.choosePhotos': '选择照片',
+    'file.cancel': '取消',
+    'file.uploading': '上传中…',
   }
   if (key === 'image.remove') {
     const name = params?.name
@@ -56,6 +62,32 @@ function attachment(id: string, name = `${id}.png`): ComposerAttachment {
   }
 }
 
+class TestFileList implements FileList {
+  [index: number]: File
+  readonly length: number
+  private readonly files: readonly File[]
+
+  constructor(files: readonly File[]) {
+    this.files = files
+    this.length = files.length
+    files.forEach((file, index) => { this[index] = file })
+  }
+
+  item(index: number): File | null {
+    return this[index] ?? null
+  }
+
+  [Symbol.iterator](): ArrayIterator<File> {
+    return this.files[Symbol.iterator]()
+  }
+}
+
+function pickerInput(dialog: HTMLElement, kind: 'file' | 'photos'): HTMLInputElement {
+  const input = dialog.querySelector<HTMLInputElement>(`input[data-file-picker-kind="${kind}"]`)
+  if (input === null) throw new Error(`missing ${kind} file picker input`)
+  return input
+}
+
 function props(overrides: Partial<ComposerAttachmentsOwnerProps> = {}): ComposerAttachmentsProps {
   return {
     attachments: [],
@@ -68,6 +100,82 @@ function props(overrides: Partial<ComposerAttachmentsOwnerProps> = {}): Composer
 }
 
 describe('ComposerAttachments', () => {
+  it('opens the accessible attachment picker and passes Composer translations to it', () => {
+    const view = render(<ComposerAttachments {...props()} />)
+
+    const trigger = view.getByRole('button', { name: '添加附件' })
+    expect(trigger).toBeTruthy()
+    fireEvent.click(trigger)
+
+    const dialog = view.getByRole('dialog', { name: '添加附件' })
+    expect(within(dialog).getByRole('button', { name: '选择文件' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: '选择照片' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: '取消' })).toBeTruthy()
+  })
+
+  it('routes a file chosen from the general picker to workspace upload', () => {
+    const onAddImages = vi.fn()
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    const view = render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
+    fireEvent.click(view.getByRole('button', { name: '添加附件' }))
+    const dialog = view.getByRole('dialog', { name: '添加附件' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '选择文件' }))
+    const input = pickerInput(dialog, 'file')
+    const file = new File(['# notes'], 'notes.md', { type: 'text/markdown' })
+
+    fireEvent.change(input, { target: { files: new TestFileList([file]) } })
+
+    expect(onAddImages).not.toHaveBeenCalled()
+    expect(onUploadFiles).toHaveBeenCalledWith([file])
+  })
+
+  it('routes photos chosen from the photo picker to the image rail', () => {
+    const onAddImages = vi.fn()
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    const view = render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
+    fireEvent.click(view.getByRole('button', { name: '添加附件' }))
+    const dialog = view.getByRole('dialog', { name: '添加附件' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '选择照片' }))
+    const input = pickerInput(dialog, 'photos')
+    const image = new File(['image'], 'photo.jpg', { type: 'image/jpeg' })
+
+    fireEvent.change(input, { target: { files: new TestFileList([image]) } })
+
+    expect(onAddImages).toHaveBeenCalledWith([image])
+    expect(onUploadFiles).not.toHaveBeenCalled()
+  })
+
+  it('preserves the relative order of mixed picker files while routing by MIME', () => {
+    const onAddImages = vi.fn()
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    const view = render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
+    fireEvent.click(view.getByRole('button', { name: '添加附件' }))
+    const dialog = view.getByRole('dialog', { name: '添加附件' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '选择文件' }))
+    const input = pickerInput(dialog, 'file')
+    const firstImage = new File(['one'], 'one.png', { type: 'image/png' })
+    const firstFile = new File(['two'], 'two.txt', { type: 'text/plain' })
+    const secondImage = new File(['three'], 'three.webp', { type: 'image/webp' })
+    const secondFile = new File(['four'], 'four.pdf', { type: 'application/pdf' })
+
+    fireEvent.change(input, {
+      target: { files: new TestFileList([firstImage, firstFile, secondImage, secondFile]) },
+    })
+
+    expect(onAddImages).toHaveBeenCalledWith([firstImage, secondImage])
+    expect(onUploadFiles).toHaveBeenCalledWith([firstFile, secondFile])
+  })
+
+  it('disables the attachment picker when drops are not accepted', () => {
+    const view = render(<ComposerAttachments {...props({ canAcceptDrop: false })} />)
+    const trigger = view.getByRole('button', { name: '添加附件' })
+
+    expect((trigger as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(trigger)
+
+    expect(view.queryByRole('dialog', { name: '添加附件' })).toBeNull()
+  })
+
   it('accepts file drops anywhere on the document and keeps non-file drags native', () => {
     const onAddImages = vi.fn()
     const view = render(<ComposerAttachments {...props({
@@ -126,14 +234,18 @@ describe('ComposerAttachments', () => {
     const view = render(<ComposerAttachments {...props({ onAddImages, onUploadFiles })} />)
     const image = attachment('mixed-image').file
     const file = new File(['# notes'], 'notes.md', { type: 'text/markdown' })
-    const dataTransfer = { types: ['Files'], files: [image, file], dropEffect: 'none' }
+    const secondImage = attachment('mixed-image-2', 'second.jpg').file
+    const secondFile = new File(['data'], 'data.csv', { type: 'text/csv' })
+    const dataTransfer = {
+      types: ['Files'], files: [image, file, secondImage, secondFile], dropEffect: 'none',
+    }
 
     fireEvent.dragEnter(document.body, { dataTransfer })
     expect(view.getByRole('status').textContent).toContain('文件拖动到此处即可上传')
     fireEvent.drop(document.body, { dataTransfer })
 
-    expect(onAddImages).toHaveBeenCalledWith([image])
-    expect(onUploadFiles).toHaveBeenCalledWith([file])
+    expect(onAddImages).toHaveBeenCalledWith([image, secondImage])
+    expect(onUploadFiles).toHaveBeenCalledWith([file, secondFile])
     expect(view.queryByRole('status')).toBeNull()
   })
 

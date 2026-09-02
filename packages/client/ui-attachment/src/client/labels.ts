@@ -1,6 +1,7 @@
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AttachmentRailLabels } from '../AttachmentRail.tsx'
 import type { DropOverlayLabels } from '../DropOverlay.tsx'
+import type { FilePickerLabels } from './FilePicker.tsx'
 import type { ImageLightboxLabels } from '../ImageLightbox.tsx'
 import type { MessageImageLabels } from '../MessageImage.tsx'
 
@@ -53,6 +54,22 @@ export function dropOverlayLabels(
   return {
     title: t('image.dropTitle'),
     desc: limits === undefined ? undefined : t('image.dropDesc', limits),
+  }
+}
+
+/**
+ * Resolve attachment-picker strings from the conversation namespace.
+ * @param t - conversation namespace translator.
+ * @returns translated picker labels.
+ */
+export function filePickerLabels(t: TranslateNS<'conversation'>): FilePickerLabels {
+  return {
+    button: t('file.attach'),
+    dialog: t('file.attachDialog'),
+    chooseFile: t('file.chooseFile'),
+    choosePhotos: t('file.choosePhotos'),
+    cancel: t('file.cancel'),
+    uploading: t('file.uploading'),
   }
 }
 
