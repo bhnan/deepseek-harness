@@ -1076,6 +1076,64 @@ app.delete('/api/portfolio/moral-records/:rid', (req, res) => {
   ok(res, { deleted: before.id });
 });
 
+// ---------- 学生谈话记录（谈心/家访/电话/约谈等） ----------
+const TALK_TYPES = ['谈心', '批评', '鼓励', '家访', '电话', '微信', '约谈', '周记回复', '家长来访', '其他'];
+
+app.post('/api/portfolio/students/:sid/talk-records', (req, res) => {
+  const stu = findStudent(req.params.sid);
+  if (!stu) return fail(res, 404, '学生不存在');
+  const b = req.body || {};
+  if (!isValidDate(b.date)) return fail(res, 400, 'date 格式非法');
+  if (!TALK_TYPES.includes(b.talk_type)) return fail(res, 400, 'talk_type 非法（参见 TALK_TYPES）');
+  const summary = cleanStr(b.summary, 2000);
+  if (!summary) return fail(res, 400, 'summary 必填');
+  const cls = getById('classes', stu.class_id);
+  const rec = {
+    id: genId('tr'), student_id: stu.id, date: b.date, talk_type: b.talk_type,
+    stage: STAGES.includes(b.stage) ? b.stage : (cls ? cls.stage : 'middle'),
+    summary, location: cleanStr(b.location, 100), follow_up: cleanStr(b.follow_up, 500),
+    recorder: cleanStr(b.recorder, 40), note: cleanStr(b.note, 500),
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+  withTx(() => { pushUndo({ op: 'create', entity: 'talk_record', entity_id: rec.id, before: null, after: { ...rec } }); insertRow('talk_records', rec); });
+  ok(res, { record: rec });
+});
+
+app.get('/api/portfolio/students/:sid/talk-records', (req, res) => {
+  const stu = findStudent(req.params.sid);
+  if (!stu) return fail(res, 404, '学生不存在');
+  const cond = ['student_id = ?'];
+  const params = [stu.id];
+  if (TALK_TYPES.includes(req.query.talk_type)) { cond.push('talk_type = ?'); params.push(req.query.talk_type); }
+  if (isValidDate(req.query.date_from)) { cond.push('date >= ?'); params.push(req.query.date_from); }
+  if (isValidDate(req.query.date_to)) { cond.push('date <= ?'); params.push(req.query.date_to); }
+  const rows = getDB().prepare(`SELECT * FROM talk_records WHERE ${cond.join(' AND ')} ORDER BY date DESC`).all(...params);
+  ok(res, { records: rows, total: rows.length });
+});
+
+app.put('/api/portfolio/talk-records/:rid', (req, res) => {
+  const before = getById('talk_records', req.params.rid);
+  if (!before) return fail(res, 404, '记录不存在');
+  const b = req.body || {};
+  const patch = {};
+  if (b.date !== undefined) { if (!isValidDate(b.date)) return fail(res, 400, 'date 非法'); patch.date = b.date; }
+  if (b.talk_type !== undefined) { if (!TALK_TYPES.includes(b.talk_type)) return fail(res, 400, 'talk_type 非法'); patch.talk_type = b.talk_type; }
+  if (b.summary !== undefined) { const v = cleanStr(b.summary, 2000); if (!v) return fail(res, 400, 'summary 不能为空'); patch.summary = v; }
+  if (b.location !== undefined) patch.location = cleanStr(b.location, 100);
+  if (b.follow_up !== undefined) patch.follow_up = cleanStr(b.follow_up, 500);
+  if (b.recorder !== undefined) patch.recorder = cleanStr(b.recorder, 40);
+  if (b.note !== undefined) patch.note = cleanStr(b.note, 500);
+  const after = withTx(() => { pushUndo({ op: 'update', entity: 'talk_record', entity_id: before.id, before: { ...before }, after: { ...before, ...patch } }); return updateRow('talk_records', before.id, patch); });
+  ok(res, { record: after });
+});
+
+app.delete('/api/portfolio/talk-records/:rid', (req, res) => {
+  const before = getById('talk_records', req.params.rid);
+  if (!before) return fail(res, 404, '记录不存在');
+  withTx(() => { pushUndo({ op: 'delete', entity: 'talk_record', entity_id: before.id, before: { ...before }, after: null }); deleteRow('talk_records', before.id); });
+  ok(res, { deleted: before.id });
+});
+
 app.get('/api/portfolio/students/:sid/moral-report', (req, res) => {
   const stu = findStudent(req.params.sid);
   if (!stu) return fail(res, 404, '学生不存在');
@@ -2092,7 +2150,19 @@ if (fs.existsSync(distDir)) {
     next();
   });
   app.use(express.static(distDir));
-  app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(distDir, 'index.html')));
+  // GUI apps-proxy 以 /portfolio 前缀转发并剥前缀，页面资源引用 /portfolio/assets/...；
+  // 直连本服务时没有代理剥前缀，这里为 /portfolio 前缀提供同名别名，保证两种入口都可用。
+  app.use('/portfolio', express.static(distDir));
+  const sendIndex = (req, res) => res.sendFile(path.join(distDir, 'index.html'));
+  const sendIndexGuarded = (req, res) => {
+    // 带扩展名的路径属于资源请求：miss 静态文件时必须显式 404。
+    // 若回退 index.html，旧入口页引用的过期 hash 资源会拿到 200 的 HTML，
+    // 浏览器按 JS/CSS 解析失败后 React 无法挂载，表现为整页白屏。
+    if (path.extname(req.path)) return res.status(404).end();
+    res.sendFile(path.join(distDir, 'index.html'));
+  };
+  app.get(/^\/portfolio(\/|$)/, sendIndexGuarded);
+  app.get(/^(?!\/api\/).*/, sendIndexGuarded);
 }
 
 app.listen(PORT, () => {

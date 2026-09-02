@@ -173,7 +173,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 /* 需关注 / 德育条目 */
 .concern-item, .moral-item { padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
 
-@media (max-width: 900px) { .dash-cols { grid-template-columns: 1fr; } .sidenav { width: 60px; } .sidenav-item { justify-content: center; } .sidenav-item span:last-child, .sidenav-item { font-size: 0; } .sidenav-item.active span:last-child { display: none; } }
+/* 窄屏（≤900px）：内容双栏堆叠，侧边栏保持完整 */
+@media (max-width: 900px) {
+  .dash-cols { grid-template-columns: 1fr; }
+}
+
+/* 更窄（≤700px）：侧边栏收成 60px 图标栏。导航项文字是裸文本节点（非 span），
+   用 font-size:0 隐藏文字；图标 span 必须显式恢复字号，否则会被一并隐藏导致侧边栏看起来为空。 */
+@media (max-width: 700px) {
+  .sidenav { width: 60px; }
+  .sidenav-item { justify-content: center; gap: 0; font-size: 0; }
+  .sidenav-item .sidenav-icon { font-size: 16px; }
+  .sidenav-class .class-picker-btn { justify-content: center; gap: 0; padding: 5px 0; }
+  .sidenav-class .cp-name, .sidenav-class .cp-role, .sidenav-class .cp-caret { display: none; }
+}
 
 /* ===== 当前班级选择器（顶栏） ===== */
 .class-picker { position: relative; }
