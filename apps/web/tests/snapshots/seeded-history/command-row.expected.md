@@ -45,6 +45,7 @@
   - text: Context injection AGENTS.md
 - img
 - text: permission preset read-only
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

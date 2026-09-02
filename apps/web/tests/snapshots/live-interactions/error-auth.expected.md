@@ -19,6 +19,7 @@
 - status:
   - text: This turn failedAPI key is invalid
   - code: AUTH
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

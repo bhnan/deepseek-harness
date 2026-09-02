@@ -34,6 +34,7 @@
   - img
   - img
   - text: "feedback Feedback recorded for session session-{{uuid}} Anonymous user: {{uuid}}. Session sharing is enabled."
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

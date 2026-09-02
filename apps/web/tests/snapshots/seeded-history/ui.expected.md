@@ -43,6 +43,7 @@
   - img
   - img
   - text: Context injection AGENTS.md
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

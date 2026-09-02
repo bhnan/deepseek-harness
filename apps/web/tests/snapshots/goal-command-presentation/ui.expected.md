@@ -14,6 +14,7 @@
   - img
   - img
   - text: "goal No goal is currently set. Usage: /goal [<objective>|clear|edit <objective>|pause|resume]"
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

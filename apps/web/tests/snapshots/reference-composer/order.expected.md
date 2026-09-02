@@ -13,6 +13,7 @@
 - button "Session recall Research notes":
   - img
   - text: Session recall Research notes
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

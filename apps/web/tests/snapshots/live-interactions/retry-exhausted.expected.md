@@ -21,6 +21,7 @@
 - status:
   - text: This turn failedupstream 503
   - code: SERVER
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

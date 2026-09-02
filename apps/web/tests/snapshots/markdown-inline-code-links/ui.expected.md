@@ -36,6 +36,7 @@
 - button "Branch into a new conversation":
   - img
 - text: {{clock}} Ran for {{duration}}
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

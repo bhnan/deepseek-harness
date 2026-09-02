@@ -41,6 +41,7 @@
 - button "Branch into a new conversation":
   - img
 - text: {{date}} {{clock}} Ran for {{duration}} TTFT {{duration}} {{throughput}} tok/s
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img

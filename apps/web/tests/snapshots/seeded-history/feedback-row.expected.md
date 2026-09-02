@@ -49,6 +49,7 @@
   - img
   - text: "feedback Feedback recorded for session {{seededId}} Anonymous user: {{uuid}}. Session sharing is not configured."
 - text: "Feedback recorded for session {{seededId}} Anonymous user: {{uuid}}. Session sharing is not configured."
+- button "Attach"
 - textbox "Message the agent"
 - button "Commands":
   - img
