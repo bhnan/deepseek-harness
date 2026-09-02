@@ -47,7 +47,9 @@ export function dropOverlayLabels(
   if (acceptsWorkspaceFiles) {
     return {
       title: accepting ? t('file.dropTitle') : t('file.dropBlocked'),
-      desc: accepting ? t('file.dropDesc') : undefined,
+      desc: accepting
+        ? [t('file.dropDesc'), ...(limits === undefined ? [] : [t('image.dropDesc', limits)])].join('\n')
+        : undefined,
     }
   }
   if (!accepting) return { title: t('image.dropBlocked') }

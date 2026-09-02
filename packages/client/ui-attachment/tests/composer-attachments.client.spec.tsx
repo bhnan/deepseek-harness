@@ -249,6 +249,23 @@ describe('ComposerAttachments', () => {
     expect(view.queryByRole('status')).toBeNull()
   })
 
+  it('keeps image limits in the generic workspace-file drop overlay', () => {
+    const onUploadFiles = vi.fn(() => Promise.resolve())
+    const view = render(<ComposerAttachments {...props({
+      onUploadFiles,
+      dropLimits: { count: 20, size: '5MB' },
+    })} />)
+    const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
+    const dataTransfer = { types: ['Files'], files: [file], dropEffect: 'none' }
+
+    fireEvent.dragEnter(document.body, { dataTransfer })
+
+    const status = view.getByRole('status')
+    expect(status.textContent).toContain('文件拖动到此处即可上传')
+    expect(status.textContent).toContain('文件会保存到当前工作区，agent 将自行读取和解析')
+    expect(status.textContent).toContain('最多 20 张，每张 5MB')
+  })
+
   it('uploads a generic-only drop without calling the image path', () => {
     const onAddImages = vi.fn()
     const onUploadFiles = vi.fn(() => Promise.resolve())
