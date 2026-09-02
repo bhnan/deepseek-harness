@@ -160,6 +160,87 @@ describe('FilePicker', () => {
     expect(view.queryByRole('dialog', { name: labels.dialog })).toBeNull()
   })
 
+  it('disables open chooser actions when disabled changes while open', () => {
+    const view = render(<FilePicker {...props()} />)
+    fireEvent.click(view.getByRole('button', { name: labels.button }))
+    const dialog = view.getByRole('dialog', { name: labels.dialog })
+    const fileInput = inputFor(dialog, 'file')
+    const photosInput = inputFor(dialog, 'photos')
+    const inputClick = vi.spyOn(fileInput, 'click')
+    const photosInputClick = vi.spyOn(photosInput, 'click')
+
+    view.rerender(<FilePicker {...props({ disabled: true })} />)
+
+    const openDialog = view.getByRole('dialog', { name: labels.dialog })
+    const chooseFile = within(openDialog).getByRole('button', { name: labels.chooseFile })
+    const choosePhotos = within(openDialog).getByRole('button', { name: labels.choosePhotos })
+    expect((chooseFile as HTMLButtonElement).disabled).toBe(true)
+    expect((choosePhotos as HTMLButtonElement).disabled).toBe(true)
+    expect(fileInput.disabled).toBe(true)
+    expect(photosInput.disabled).toBe(true)
+
+    fireEvent.click(chooseFile)
+    fireEvent.click(choosePhotos)
+
+    expect(inputClick).not.toHaveBeenCalled()
+    expect(photosInputClick).not.toHaveBeenCalled()
+  })
+
+  it('traps Tab and Shift+Tab within enabled dialog controls', () => {
+    const view = render(<FilePicker {...props()} />)
+    fireEvent.click(view.getByRole('button', { name: labels.button }))
+    const dialog = view.getByRole('dialog', { name: labels.dialog })
+    const chooseFile = within(dialog).getByRole('button', { name: labels.chooseFile })
+    const choosePhotos = within(dialog).getByRole('button', { name: labels.choosePhotos })
+    const cancel = within(dialog).getByRole('button', { name: labels.cancel })
+
+    chooseFile.focus()
+    fireEvent.keyDown(chooseFile, { key: 'Tab' })
+    expect(document.activeElement).toBe(choosePhotos)
+    fireEvent.keyDown(choosePhotos, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel)
+    fireEvent.keyDown(cancel, { key: 'Tab' })
+    expect(document.activeElement).toBe(chooseFile)
+
+    fireEvent.keyDown(chooseFile, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  it('restores focus to the trigger after Escape closes the dialog', () => {
+    const view = render(<FilePicker {...props()} />)
+    const trigger = view.getByRole('button', { name: labels.button })
+    fireEvent.click(trigger)
+
+    fireEvent.keyDown(view.getByRole('dialog', { name: labels.dialog }), { key: 'Escape' })
+
+    expect(view.queryByRole('dialog', { name: labels.dialog })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('excludes disabled and hidden inputs from the focus cycle while uploading', () => {
+    const onFiles = vi.fn<FilePickerProps['onFiles']>(() => new Promise<void>(() => {}))
+    const view = render(<FilePicker {...props({ onFiles })} />)
+    fireEvent.click(view.getByRole('button', { name: labels.button }))
+    const dialog = view.getByRole('dialog', { name: labels.dialog })
+    const fileInput = inputFor(dialog, 'file')
+    const file = new File(['pending'], 'pending.txt', { type: 'text/plain' })
+
+    fireEvent.change(fileInput, { target: { files: new TestFileList([file]) } })
+
+    const chooseFile = within(dialog).getByRole('button', { name: labels.chooseFile })
+    const choosePhotos = within(dialog).getByRole('button', { name: labels.choosePhotos })
+    const cancel = within(dialog).getByRole('button', { name: labels.cancel })
+    expect((chooseFile as HTMLButtonElement).disabled).toBe(true)
+    expect((choosePhotos as HTMLButtonElement).disabled).toBe(true)
+    expect(fileInput.getAttribute('tabindex')).toBe('-1')
+
+    cancel.focus()
+    fireEvent.keyDown(cancel, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel)
+    fireEvent.keyDown(cancel, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancel)
+  })
+
   it('clears the input after selection so the same file can be selected again', () => {
     const onFiles = vi.fn<FilePickerProps['onFiles']>()
     const view = render(<FilePicker {...props({ onFiles })} />)

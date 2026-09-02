@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, KeyboardEvent } from 'react'
 import css from './FilePicker.module.css'
 
 /** File-picker strings resolved by the owning composer. */
@@ -20,6 +20,25 @@ export interface FilePickerProps {
 }
 
 type FilePickerKind = 'file' | 'photos'
+
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
+
+/** Query the dialog's currently keyboard-reachable controls. */
+function getFocusableElements(dialog: HTMLElement): HTMLElement[] {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    .filter(element => !element.hasAttribute('hidden'))
+    .filter(element => element.getAttribute('aria-hidden') !== 'true')
+    .filter(element => element.getAttribute('type') !== 'hidden')
+    .filter(element => !element.hasAttribute('disabled'))
+    .filter(element => element.tabIndex >= 0)
+}
 
 /**
  * Small attachment trigger with native file inputs kept in the accessible
@@ -45,7 +64,7 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
   }
 
   const chooseInput = (kind: FilePickerKind): void => {
-    if (uploading) return
+    if (disabled || uploading) return
     const input = kind === 'file' ? fileInputRef.current : photosInputRef.current
     input?.click()
   }
@@ -57,7 +76,7 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
     // Clear before invoking the owner so the same browser selection can be
     // chosen again even when the upload takes time or rejects.
     input.value = ''
-    if (files.length === 0) return
+    if (disabled || uploading || files.length === 0) return
 
     let result: void | Promise<void>
     try {
@@ -77,7 +96,31 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
       .finally(() => {
         setUploading(false)
       })
-  }, [onFiles])
+  }, [disabled, onFiles, uploading])
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Tab') return
+    const dialog = dialogRef.current
+    if (dialog === null) return
+    const focusable = getFocusableElements(dialog)
+    if (focusable.length === 0) {
+      event.preventDefault()
+      dialog.focus()
+      return
+    }
+
+    const activeElement = document.activeElement
+    const currentIndex = activeElement instanceof HTMLElement
+      ? focusable.indexOf(activeElement)
+      : -1
+    const targetIndex = event.shiftKey
+      ? currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1
+      : currentIndex === -1 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1
+    const target = focusable[targetIndex]
+    if (target === undefined) return
+    event.preventDefault()
+    target.focus()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -121,13 +164,14 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
           aria-label={labels.dialog}
           aria-busy={uploading}
           tabIndex={-1}
+          onKeyDown={handleDialogKeyDown}
         >
           <div className={css.actions}>
             <button
               ref={chooseFileRef}
               type="button"
               className={css.action}
-              disabled={uploading}
+              disabled={disabled || uploading}
               onClick={() => { chooseInput('file') }}
             >
               {labels.chooseFile}
@@ -135,7 +179,7 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
             <button
               type="button"
               className={css.action}
-              disabled={uploading}
+              disabled={disabled || uploading}
               onClick={() => { chooseInput('photos') }}
             >
               {labels.choosePhotos}
@@ -155,7 +199,8 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
             data-file-picker-kind="file"
             type="file"
             multiple
-            disabled={uploading}
+            disabled={disabled || uploading}
+            tabIndex={-1}
             onChange={handleChange}
           />
           <input
@@ -165,7 +210,8 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
             type="file"
             accept="image/*"
             multiple
-            disabled={uploading}
+            disabled={disabled || uploading}
+            tabIndex={-1}
             onChange={handleChange}
           />
         </div>
