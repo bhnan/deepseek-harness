@@ -22,19 +22,31 @@ export function ComposerAttachments({
   const [preview, setPreview] = useState<ComposerAttachment | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const dragDepth = useRef(0)
+  const uploadTail = useRef<Promise<void> | null>(null)
   const closePreview = useCallback(() => { setPreview(null) }, [])
+
+  const enqueueUpload = useCallback((files: readonly File[]): void | Promise<void> => {
+    if (onUploadFiles === undefined) {
+      onAddImages(files)
+      return
+    }
+    const previous = uploadTail.current
+    const upload = previous === null
+      ? onUploadFiles(files)
+      : previous.then(() => onUploadFiles(files))
+    // Keep the queue moving after a failed upload while returning the original
+    // promise so FilePicker and document drops can consume its rejection.
+    uploadTail.current = upload.catch(() => {})
+    return upload
+  }, [onAddImages, onUploadFiles])
 
   const intakeFiles = useCallback((files: readonly File[]): void | Promise<void> => {
     const images = files.filter(file => file.type.startsWith('image/'))
     const workspaceFiles = files.filter(file => !file.type.startsWith('image/'))
     if (images.length > 0) onAddImages(images)
     if (workspaceFiles.length === 0) return
-    if (onUploadFiles === undefined) {
-      onAddImages(workspaceFiles)
-      return
-    }
-    return onUploadFiles(workspaceFiles)
-  }, [onAddImages, onUploadFiles])
+    return enqueueUpload(workspaceFiles)
+  }, [enqueueUpload, onAddImages])
 
   const consumeIntake = useCallback((files: readonly File[]): void => {
     const result = intakeFiles(files)

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import type {
   ComposerAttachment, ComposerAttachmentsOwnerProps, ComposerAttachmentsProps,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -261,6 +261,33 @@ describe('ComposerAttachments', () => {
 
     expect(onAddImages).not.toHaveBeenCalled()
     expect(onUploadFiles).toHaveBeenCalledWith([file])
+  })
+
+  it('queues generic uploads by intake event and continues after a rejection', async () => {
+    let rejectFirstUpload: ((reason?: unknown) => void) | undefined
+    const firstUpload = new Promise<void>((_resolve, reject) => {
+      rejectFirstUpload = reject
+    })
+    const onUploadFiles = vi.fn<NonNullable<ComposerAttachmentsOwnerProps['onUploadFiles']>>()
+      .mockReturnValueOnce(firstUpload)
+      .mockResolvedValue(undefined)
+    render(<ComposerAttachments {...props({ onUploadFiles })} />)
+    const firstFile = new File(['first'], 'first.txt', { type: 'text/plain' })
+    const secondFile = new File(['second'], 'second.txt', { type: 'text/plain' })
+    const firstTransfer = { types: ['Files'], files: [firstFile], dropEffect: 'none' }
+    const secondTransfer = { types: ['Files'], files: [secondFile], dropEffect: 'none' }
+
+    fireEvent.drop(document.body, { dataTransfer: firstTransfer })
+    expect(onUploadFiles).toHaveBeenCalledTimes(1)
+
+    fireEvent.drop(document.body, { dataTransfer: secondTransfer })
+    expect(onUploadFiles).toHaveBeenCalledTimes(1)
+
+    if (rejectFirstUpload === undefined) throw new Error('first upload rejector was not initialized')
+    rejectFirstUpload(new Error('first upload failed'))
+    await waitFor(() => { expect(onUploadFiles).toHaveBeenCalledTimes(2) })
+    expect(onUploadFiles).toHaveBeenNthCalledWith(1, [firstFile])
+    expect(onUploadFiles).toHaveBeenNthCalledWith(2, [secondFile])
   })
 
   it('shows a blocked drop without forwarding its files', () => {
