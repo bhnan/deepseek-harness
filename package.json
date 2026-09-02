@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch server/index.mjs",
     "dev:web": "vite",
-    "build": "vite build",
+    "build": "vite build --base=/calendar/",
     "test": "vitest run",
     "test:watch": "vitest",
     "start": "node server/index.mjs"

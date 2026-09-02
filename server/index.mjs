@@ -201,6 +201,95 @@ app.delete('/api/calendar/classes/:id', (req, res) => {
   ok(res, { deleted: before.id });
 });
 
+// ---------- 班级与学生档案联动（X 扩展） ----------
+// 学生档案（portfolio，默认 127.0.0.1:8797）为班级名册来源：
+// - 拉取：档案内班级 → 日历按名称（含「初一(5)班·班主任」这类后缀归一）匹配，未匹配的自动建班
+// - 班主任班：role=homeroom 的班级在日历侧标记 homeroom=true，各界面不显示（档案保留）
+// - 推送：日历里新建的普通班级 → 档案侧自动创建为 subject 班级
+const PORTFOLIO_BASE = process.env.TC_PORTFOLIO_BASE || 'http://127.0.0.1:8797';
+
+function normalizeClassName(name) {
+  return String(name || '').replace(/·班主任$/, '').replace(/班主任$/, '').trim();
+}
+
+function gradeFromClassName(name) {
+  const m = /^(初一|初二|初三|高一|高二|高三)/.exec(name || '');
+  if (m) return m[1];
+  const m2 = /^(一|二|三|四|五|六)年级/.exec(name || '');
+  if (m2) return `${m2[1]}年级`;
+  if (/^四\(/.test(name || '')) return '四年级';
+  if (/^[一二三五六]\(/.test(name || '')) return '其他';
+  return '其他';
+}
+
+function fetchJSON(url, options, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    fetch(url, { ...(options || {}), signal: ctrl.signal })
+      .then((r) => r.json().catch(() => ({ ok: false, reason: `学生档案响应异常 HTTP ${r.status}` })))
+      .then((d) => { clearTimeout(timer); resolve(d); })
+      .catch((e) => { clearTimeout(timer); resolve({ ok: false, reason: `学生档案不可用（${e.message}）` }); });
+  });
+}
+
+/** 同色系取色：优先未用过的颜色 */
+function pickClassColor(list, stage) {
+  const palette = (STAGE_PALETTES[stage] || STAGE_PALETTES.middle).map((p) => p.color);
+  const used = new Set(list.filter((c) => c.stage === stage).map((c) => c.color.toLowerCase()));
+  return palette.find((c) => !used.has(c.toLowerCase())) || palette[list.length % palette.length];
+}
+
+app.post('/api/calendar/classes/sync-portfolio', async (req, res) => {
+  const pf = await fetchJSON(`${PORTFOLIO_BASE}/api/portfolio/classes`);
+  if (!Array.isArray(pf.classes)) return fail(res, 502, pf.reason || '学生档案服务不可用');
+  const pfClasses = Array.isArray(pf.classes) ? pf.classes : [];
+  const classes = readJSON(P.classes, []);
+  const report = { created: [], linked: [], pushed: [], skipped: [] };
+
+  for (const p of pfClasses) {
+    const norm = normalizeClassName(p.name);
+    let cls = classes.find((c) => c.linked_portfolio_id === p.id)
+      || classes.find((c) => c.name === p.name)
+      || classes.find((c) => !c.linked_portfolio_id && normalizeClassName(c.name) === norm);
+    if (cls) {
+      const wasHidden = !!cls.homeroom;
+      cls.linked_portfolio_id = p.id;
+      cls.homeroom = p.role === 'homeroom' ? true : !!cls.homeroom;
+      if (p.role === 'homeroom' && !wasHidden) report.linked.push(`${cls.name} → 班主任班（工作日历隐藏）`);
+      else if (!report.linked.includes(`${cls.name}（已联动）`)) report.linked.push(`${cls.name}（已联动）`);
+    } else {
+      const ncls = {
+        id: genId('cls'), name: p.name, stage: p.stage === 'primary' ? 'primary' : 'middle',
+        color: pickClassColor(classes, p.stage === 'primary' ? 'primary' : 'middle'),
+        homeroom: p.role === 'homeroom', linked_portfolio_id: p.id,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      classes.push(ncls);
+      report.created.push(`${p.name}${ncls.homeroom ? '（班主任班·日历隐藏）' : ''}`);
+    }
+  }
+
+  // 推送：日历内未联动且非班主任班的班级 → 档案建班（subject）
+  for (const c of classes) {
+    if (c.linked_portfolio_id || c.homeroom) continue;
+    const body = { name: c.name, grade: gradeFromClassName(c.name), stage: c.stage === 'primary' ? 'primary' : 'middle', role: 'subject' };
+    const r = await fetchJSON(`${PORTFOLIO_BASE}/api/portfolio/classes`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (r.ok && r.class && r.class.id) { c.linked_portfolio_id = r.class.id; report.pushed.push(c.name); }
+    else if (r.ok === false && String(r.reason || '').includes('已存在')) { report.skipped.push(`${c.name}（档案已存在同名班级）`); }
+    else if (r.ok === false) { report.skipped.push(`${c.name}（${r.reason}）`); }
+    else { report.skipped.push(`${c.name}（档案无 200 响应）`); }
+  }
+
+  writeJSON(P.classes, classes);
+  ok(res, {
+    report,
+    classes: classes.map((c) => ({ id: c.id, name: c.name, color: c.color, stage: c.stage, homeroom: !!c.homeroom, linked_portfolio_id: c.linked_portfolio_id || null })),
+  });
+});
+
 // ---------- 学期内集合通用读取 ----------
 const sidGuard = (res, id) => {
   if (!getSemester(id)) { fail(res, 404, '学期不存在'); return null; }
@@ -395,7 +484,7 @@ app.get('/api/calendar/:sid/push/today', (req, res) => {
   const date = todayISO();
   let state = pushState(sid);
   let entry = null;
-  const byDateId = state.by_date[date];
+  const byDateId = state.by_date ? state.by_date[date] : null; // 旧数据可能缺 by_date，防御
   if (byDateId) {
     entry = ((readJSON(P.culture, {}) || {}).data || {}).items.find((it) => it.id === byDateId) || null;
   }
@@ -784,10 +873,13 @@ app.post('/api/calendar/:sid/sequence/apply', (req, res) => {
   const classes = readJSON(P.classes, []);
   const seqData = readJSON(SEQ_FILE(sid), null) || { middle: { items: [] }, primary: { items: [] } };
   const explicitContents = (req.body?.contents || []).map((c) => String(c || '').trim()).filter(Boolean);
-  // 目标班：显式 class_ids > 全部有固定排课的班
+  // 学段限定（初中/小学）：未指定班级时只应用到该学段有排课的班，杜绝跨学段混填
+  const stageFilter = req.body?.stage === 'primary' || req.body?.stage === 'middle' ? req.body.stage : null;
+  const classById = new Map(classes.map((c) => [c.id, c]));
+  // 目标班：显式 class_ids > 全部有固定排课的班（可选择只取某学段）
   const classIds = Array.isArray(req.body?.class_ids) && req.body.class_ids.length > 0
     ? req.body.class_ids
-    : [...new Set(allFixed.map((f) => f.class_id))];
+    : [...new Set(allFixed.filter((f) => !stageFilter || classById.get(f.class_id)?.stage === stageFilter).map((f) => f.class_id))];
   const before = allContents.map((c) => ({ ...c }));
   let newContents = allContents.map((c) => ({ ...c }));
   const report = [];
@@ -1127,10 +1219,17 @@ app.post('/api/calendar/:sid/events', (req, res) => {
   const sid = sidGuard(res, req.params.sid); if (!sid) return;
   const { type, title, date, time, location, participants, notes, requirements, color } = req.body || {};
   if (!['course', 'activity'].includes(type) || !title || !date) return fail(res, 400, 'type(course/activity)/title/date 必填');
+  // 节次关联（个人事务可出现在指定节次，多选；空 = 全天）
+  const rawPeriods = req.body?.periods;
+  const periods = Array.isArray(rawPeriods)
+    ? [...new Set(rawPeriods.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 30))].sort((a, b) => a - b)
+    : [];
   const item = {
     id: genId('ev'), type, title, date, time: time || '', location: location || '',
     participants: participants || '', notes: notes || '', requirements: requirements || '',
-    color: color || '#4A90D9', done: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    color: color || '#4A90D9', done: false,
+    periods: periods.length ? periods : undefined,
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   };
   const settings = loadSettings();
   pushUndo(settings, {
@@ -1256,6 +1355,12 @@ function syncHolidayDefers(sid) {
   const monday1 = weekStart(semester.start_date);
   const fixed = loadCollection(sid, 'fixed_courses.json');
   const allContents = loadCollection(sid, 'teaching_content.json');
+  // 调休补课覆盖：某周某调休日"补某星期"的课 → 该星期当天即使放假也不顺延（课在调休日补上）
+  const makeupCovered = new Set();
+  for (const m of loadCollection(sid, 'makeup_days.json')) {
+    const w = weekIndexOf(semester, m.date);
+    if (w >= 1 && Number.isInteger(m.mirror_weekday)) makeupCovered.add(`${w}-${m.mirror_weekday}`);
+  }
   const byClass = new Map();
   for (const f of fixed) {
     const arr = byClass.get(f.class_id) || [];
@@ -1270,12 +1375,14 @@ function syncHolidayDefers(sid) {
     const classContents = working.filter((c) => c.class_id === classId);
     const { items } = bindItems(classContents, slots);
     if (items.length === 0) continue;
-    // 该班课时位中落在假期范围内的 slotIndex（升序）
+    // 该班课时位中落在假期范围内的 slotIndex（升序；仅真实放假停课，节气/纪念日不顺延）
     const holidayIdx = [];
+    const realHoliday = (x) => !x.kind || x.kind === 'holiday';
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i];
+      if (makeupCovered.has(`${s.week}-${s.weekday}`)) continue; // 该星期由调休日补上 → 不顺延
       const date = addDays(monday1, (s.week - 1) * 7 + (s.weekday - 1));
-      if (holidays.some((h) => h.start_date <= date && h.end_date >= date)) holidayIdx.push(i);
+      if (holidays.some((h) => realHoliday(h) && h.start_date <= date && h.end_date >= date)) holidayIdx.push(i);
     }
     if (holidayIdx.length === 0) continue;
     // 将连续假期 slotIndex 分组为块
@@ -1350,22 +1457,27 @@ app.get('/api/calendar/:sid/week-view', (req, res) => {
   const merged = mergeWeekView(fixed, temps, week);
   // 停课标记（R4 扩展）：标记过的课时位当周隐藏课程（数据保留，取消标记即恢复）
   const suspendedKeys = new Set(suspensions.map((s) => `${s.weekday}-${s.period}`));
-  // 法定节假日停课（D4 扩展）：节假日当天的课程格子当周隐藏（数据保留，节后自动恢复）
-  // 计算该周每天对应的日期，落在 holidays 范围内的 weekday 集合
+  // 法定节假日停课（D4 扩展）：仅 kind 为放假（缺省）的条目停课；
+  // 二十四节气（solar）/纪念日节日（festival）仅展示、不停课、不顺延
+  const realHoliday = (x) => !x.kind || x.kind === 'holiday';
+  // 计算该周每天对应的日期：真实假期 → 隐藏课程；标记日 → 仅透传展示（前端渲染徽章）
   const holidayWeekdays = new Set();
   const holidayNames = {};
   for (let d = 0; d < 7; d++) {
     const dateStr = addDays(range.start, d);
-    const h = holidays.find((x) => x.start_date <= dateStr && x.end_date >= dateStr);
+    const h = holidays.find((x) => realHoliday(x) && x.start_date <= dateStr && x.end_date >= dateStr);
     if (h) {
       const wd = weekday(dateStr);
       holidayWeekdays.add(wd);
       holidayNames[wd] = h.name;
     }
   }
+  // 调休日：该周调休日"补"的星期即使当天放假，其排课也保留，供调休日显示补课
+  const makeupInRange = loadMakeup(sid).filter((m) => m.date >= range.start && m.date <= range.end);
+  const makeupMirrorWeekdays = new Set(makeupInRange.map((m) => m.mirror_weekday));
   const holidayOff = [...merged.cells.keys()].filter((k) => {
     const wd = Number(k.split('-')[0]);
-    return holidayWeekdays.has(wd);
+    return holidayWeekdays.has(wd) && !makeupMirrorWeekdays.has(wd);
   });
   // 当日生日（--MM-DD 匹配该周每天）
   const classById = new Map(classes.map((c) => [c.id, c]));
@@ -1388,6 +1500,8 @@ app.get('/api/calendar/:sid/week-view', (req, res) => {
   const suspended = [...merged.cells.keys()].filter((k) => suspendedKeys.has(k));
   ok(res, {
     semester, week, range, total_weeks: semesterTotalWeeks(semester),
+    timeline: loadTimeline(sid),
+    makeup_days: loadMakeup(sid),
     merged_cells: [...merged.cells.entries()]
       .filter(([k]) => !merged.suppressed.includes(k) && !holidayOff.includes(k) && !suspended.includes(k)) // 临时调课覆盖 + 节假日停课 + 停课标记 当周隐藏
       .map(([k, v]) => ({ key: k, ...v })),
@@ -1416,7 +1530,117 @@ app.get('/api/calendar/:sid/full-view', (req, res) => {
   ok(res, {
     semester, total_weeks: semesterTotalWeeks(semester),
     fixed_courses: fixed, contents, birthdays, events, holidays, classes,
+    makeup_days: loadMakeup(sid),
   });
+});
+
+// ---------- 作息时间表（节次/休息段自由配置：名称+起止时间可增删改） ----------
+function normalizeTime(t) {
+  if (!t) return '';
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return null;
+  const hh = parseInt(m[1], 10); const mm = parseInt(m[2], 10);
+  if (hh > 23 || mm > 59) return null;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/** 默认作息表：9 节，时间留空由教师自行填写 */
+function defaultTimeline() {
+  return Array.from({ length: 9 }, (_, i) => ({ kind: 'period', no: i + 1, name: `第 ${i + 1} 节`, start: '', end: '' }));
+}
+
+/** 读取作息表（文件缺失/为空 → 默认 9 节；坏行尽力容错归一） */
+function loadTimeline(sid) {
+  const raw = loadCollection(sid, 'periods.json');
+  if (!Array.isArray(raw) || raw.length === 0) return defaultTimeline();
+  const seen = new Set();
+  const out = [];
+  for (const r of raw) {
+    const kind = r && r.kind === 'break' ? 'break' : 'period';
+    let no = NaN;
+    if (kind === 'period') {
+      no = parseInt(r && r.no, 10);
+      if (!Number.isInteger(no) || no < 1 || seen.has(no)) { let n = 1; while (seen.has(n)) n++; no = n; }
+      seen.add(no);
+    }
+    const start = normalizeTime(String((r && r.start) || '').trim());
+    const end = normalizeTime(String((r && r.end) || '').trim());
+    out.push({
+      kind,
+      ...(kind === 'period' ? { no } : {}),
+      name: String((r && r.name) || '').trim() || (kind === 'period' ? `第 ${no} 节` : '休息'),
+      start: start === null ? '' : start,
+      end: end === null ? '' : end,
+    });
+  }
+  return out;
+}
+
+app.get('/api/calendar/:sid/periods', (req, res) => {
+  const sid = sidGuard(res, req.params.sid); if (!sid) return;
+  ok(res, { periods: loadTimeline(sid) });
+});
+
+app.put('/api/calendar/:sid/periods', (req, res) => {
+  const sid = sidGuard(res, req.params.sid); if (!sid) return;
+  const raw = req.body && req.body.periods;
+  if (!Array.isArray(raw) || raw.length === 0) return fail(res, 400, 'periods 必须是非空数组');
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i] || {};
+    const kind = r.kind === 'break' ? 'break' : 'period';
+    const name = String(r.name || '').trim();
+    if (!name) return fail(res, 400, `第 ${i + 1} 行：名称不能为空`);
+    const start = normalizeTime(String(r.start || '').trim());
+    const end = normalizeTime(String(r.end || '').trim());
+    if (start === null || end === null) return fail(res, 400, `第 ${i + 1} 行：时间格式应为 HH:MM（如 08:30）`);
+    if (kind === 'period') {
+      const no = parseInt(r.no, 10);
+      if (!Number.isInteger(no) || no < 1) return fail(res, 400, `第 ${i + 1} 行：节次序号必须为正整数`);
+      if (seen.has(no)) return fail(res, 400, `第 ${i + 1} 行：节次序号 ${no} 重复`);
+      seen.add(no);
+      out.push({ kind, no, name, start, end });
+    } else {
+      out.push({ kind, name, start, end });
+    }
+  }
+  saveCollection(sid, 'periods.json', out);
+  ok(res, { periods: out });
+});
+
+// ---------- 调休补课（makeup days：某日期补上指定星期的课，周视图按镜像星期展示排课） ----------
+function loadMakeup(sid) {
+  return loadCollection(sid, 'makeup_days.json');
+}
+
+app.get('/api/calendar/:sid/makeup-days', (req, res) => {
+  const sid = sidGuard(res, req.params.sid); if (!sid) return;
+  ok(res, { makeup_days: loadMakeup(sid) });
+});
+
+app.put('/api/calendar/:sid/makeup-days', (req, res) => {
+  const sid = sidGuard(res, req.params.sid); if (!sid) return;
+  const raw = req.body && req.body.makeup_days;
+  if (!Array.isArray(raw)) return fail(res, 400, 'makeup_days 必须是数组（可为空）');
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i] || {};
+    const date = String(r.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) {
+      return fail(res, 400, `第 ${i + 1} 行：日期格式应为 YYYY-MM-DD（如 2026-09-20）`);
+    }
+    if (seen.has(date)) return fail(res, 400, `第 ${i + 1} 行：日期 ${date} 重复`);
+    seen.add(date);
+    const mirror = parseInt(r.mirror_weekday, 10);
+    if (!Number.isInteger(mirror) || mirror < 1 || mirror > 7) {
+      return fail(res, 400, `第 ${i + 1} 行：补课星期必须为 1-7（周一~周日）`);
+    }
+    out.push({ date, mirror_weekday: mirror, note: String(r.note || '').trim().slice(0, 50) });
+  }
+  saveCollection(sid, 'makeup_days.json', out);
+  ok(res, { makeup_days: out });
 });
 
 // ---------- 设置与撤销（D9/G3/R5） ----------
@@ -1576,6 +1800,8 @@ if (fs.existsSync(distDir)) {
     next();
   });
   app.use(express.static(distDir));
+  // 兼容 base=/calendar/ 构建（DSH apps-proxy 下资源路径为 /calendar/assets/...）：直接访问 8787 首页也能正确加载资源
+  app.use('/calendar', express.static(distDir));
   app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(distDir, 'index.html')));
 }
 

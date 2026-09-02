@@ -40,21 +40,25 @@ export default function MonthView({ boot, semester, week, setWeek, notify, stage
   const classById = useMemo(() => new Map((data?.classes || []).map((c) => [c.id, c])), [data]);
 
   // 计算某天课程（固定模板 + 当日内容）；学段过滤：全部/初中/小学
-  // 法定节假日当天停课：不显示课程（数据保留），仅显示假期徽标
+  // 法定节假日当天停课：不显示课程（数据保留），仅显示假期徽标；节气/纪念日仅展示徽章不停课
   const dayInfo = useCallback((dateStr) => {
     if (!data) return null;
     const wd = weekday(dateStr);
     const w = weekIndexOf(semester, dateStr); // 学期总周数口径（R1）
-    const holiday = data.holidays.find((h) => h.start_date <= dateStr && h.end_date >= dateStr);
-    const fixedOfDay = holiday ? [] : data.fixed_courses.filter((f) => f.weekday === wd
+    const realHoliday = (h) => !h.kind || h.kind === 'holiday';
+    const holiday = data.holidays.find((h) => realHoliday(h) && h.start_date <= dateStr && h.end_date >= dateStr);
+    const makeup = (data.makeup_days || []).find((m) => m.date === dateStr) || null;
+    const effectiveWd = makeup ? makeup.mirror_weekday : wd; // 调休日 → 按镜像星期取排课（把该补的课补上）
+    const markers = data.holidays.filter((h) => h.kind && h.kind !== 'holiday' && h.start_date <= dateStr && h.end_date >= dateStr);
+    const fixedOfDay = holiday ? [] : data.fixed_courses.filter((f) => f.weekday === effectiveWd
       && (stageFilter === 'all' || classById.get(f.class_id)?.stage === stageFilter));
     const birthday = data.birthdays.filter((b) => `${dateStr.slice(0, 4)}${b.birthday.slice(1)}` === dateStr);
     const events = (data.events || []).filter((e) => e.date === dateStr);
     const courses = fixedOfDay.map((f) => {
-      const content = data.contents.find((c) => c.class_id === f.class_id && c.week === w && (c.weekday || 1) === wd && (c.period || 1) === f.period);
-      return { class: classById.get(f.class_id), period: f.period, content: content?.content, fixed_id: f.id, class_id: f.class_id, week: w, weekday: wd };
+      const content = data.contents.find((c) => c.class_id === f.class_id && c.week === w && (c.weekday || 1) === effectiveWd && (c.period || 1) === f.period);
+      return { class: classById.get(f.class_id), period: f.period, content: content?.content, fixed_id: f.id, class_id: f.class_id, week: w, weekday: effectiveWd };
     }).sort((a, b) => a.period - b.period);
-    return { wd, birthday, holiday, courses, events };
+    return { wd, birthday, holiday, makeup, markers, courses, events };
   }, [data, semester, classById, stageFilter]);
 
   // 周行：某周起 7 天
@@ -112,9 +116,13 @@ export default function MonthView({ boot, semester, week, setWeek, notify, stage
                 <div key={d.date}
                   className={`month-cell ${isToday ? 'today' : ''} ${d.info?.holiday ? 'holiday' : d.info?.wd >= 6 ? 'weekend' : ''} ${outOfSemester ? 'outside' : ''} ${dayEvents.length ? 'has-events' : ''}`}
                   title="点击查看/添加当天课程与个人事务"
-                  onClick={() => { if (outOfSemester) return; setEditDay({ date: d.date, holiday: d.info?.holiday || null, weekday: d.info?.wd }); }}>
+                  onClick={() => { if (outOfSemester) return; setEditDay({ date: d.date, holiday: d.info?.holiday || null, weekday: d.info?.wd, makeup: d.info?.makeup || null }); }}>
                   <div className="month-date">{formatMD(d.date)}</div>
                   {d.info?.holiday && <div className="month-holiday">{d.info.holiday.name}</div>}
+                  {d.info?.makeup && <div className="month-marker is-makeup" title={d.info.makeup.note || ''}>🔄 调休·补{WEEKDAY_CN[d.info.makeup.mirror_weekday - 1]}课</div>}
+                  {d.info?.markers?.map((m) => (
+                    <div key={`${m.name}-${m.kind}`} className={`month-marker ${m.kind === 'solar' ? 'is-solar' : ''}`}>{m.name}</div>
+                  ))}
                   <div className="month-birthdays">
                     {d.info?.birthday?.map((b) => <span key={b.id} className="birthday-mini">🎂{b.name}</span>)}
                   </div>
@@ -146,7 +154,7 @@ export default function MonthView({ boot, semester, week, setWeek, notify, stage
 
       {editDay && (
         <DayManager
-          boot={boot} semester={semester} week={week} date={editDay.date} holiday={editDay.holiday} weekday={editDay.weekday}
+          boot={boot} semester={semester} week={week} date={editDay.date} holiday={editDay.holiday} weekday={editDay.weekday} makeup={editDay.makeup || null}
           events={(data?.events || []).filter((e) => e.date === editDay.date)}
           dayCourses={(() => {
             const info = dayInfo(editDay.date);

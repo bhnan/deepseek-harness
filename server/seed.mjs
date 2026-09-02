@@ -12,6 +12,84 @@ const HOLIDAYS = [
   { name: '国庆节', start_date: '2026-10-01', end_date: '2026-10-07' },
 ];
 
+// 二十四节气（kind: 'solar'：仅日历展示，不停课；日期为天文历计算结果，北京时间）
+const SOLAR_TERMS = [
+  { name: '小寒', start_date: '2026-01-05', end_date: '2026-01-05', kind: 'solar' },
+  { name: '大寒', start_date: '2026-01-20', end_date: '2026-01-20', kind: 'solar' },
+  { name: '立春', start_date: '2026-02-04', end_date: '2026-02-04', kind: 'solar' },
+  { name: '雨水', start_date: '2026-02-18', end_date: '2026-02-18', kind: 'solar' },
+  { name: '惊蛰', start_date: '2026-03-05', end_date: '2026-03-05', kind: 'solar' },
+  { name: '春分', start_date: '2026-03-20', end_date: '2026-03-20', kind: 'solar' },
+  { name: '清明', start_date: '2026-04-05', end_date: '2026-04-05', kind: 'solar' },
+  { name: '谷雨', start_date: '2026-04-20', end_date: '2026-04-20', kind: 'solar' },
+  { name: '立夏', start_date: '2026-05-05', end_date: '2026-05-05', kind: 'solar' },
+  { name: '小满', start_date: '2026-05-21', end_date: '2026-05-21', kind: 'solar' },
+  { name: '芒种', start_date: '2026-06-05', end_date: '2026-06-05', kind: 'solar' },
+  { name: '夏至', start_date: '2026-06-21', end_date: '2026-06-21', kind: 'solar' },
+  { name: '小暑', start_date: '2026-07-07', end_date: '2026-07-07', kind: 'solar' },
+  { name: '大暑', start_date: '2026-07-23', end_date: '2026-07-23', kind: 'solar' },
+  { name: '立秋', start_date: '2026-08-07', end_date: '2026-08-07', kind: 'solar' },
+  { name: '处暑', start_date: '2026-08-23', end_date: '2026-08-23', kind: 'solar' },
+  { name: '白露', start_date: '2026-09-07', end_date: '2026-09-07', kind: 'solar' },
+  { name: '秋分', start_date: '2026-09-23', end_date: '2026-09-23', kind: 'solar' },
+  { name: '寒露', start_date: '2026-10-08', end_date: '2026-10-08', kind: 'solar' },
+  { name: '霜降', start_date: '2026-10-23', end_date: '2026-10-23', kind: 'solar' },
+  { name: '立冬', start_date: '2026-11-07', end_date: '2026-11-07', kind: 'solar' },
+  { name: '小雪', start_date: '2026-11-22', end_date: '2026-11-22', kind: 'solar' },
+  { name: '大雪', start_date: '2026-12-07', end_date: '2026-12-07', kind: 'solar' },
+  { name: '冬至', start_date: '2026-12-22', end_date: '2026-12-22', kind: 'solar' },
+  { name: '小寒', start_date: '2027-01-05', end_date: '2027-01-05', kind: 'solar' },
+  { name: '大寒', start_date: '2027-01-20', end_date: '2027-01-20', kind: 'solar' },
+  { name: '立春', start_date: '2027-02-04', end_date: '2027-02-04', kind: 'solar' },
+  { name: '雨水', start_date: '2027-02-19', end_date: '2027-02-19', kind: 'solar' },
+  { name: '惊蛰', start_date: '2027-03-06', end_date: '2027-03-06', kind: 'solar' },
+  { name: '春分', start_date: '2027-03-21', end_date: '2027-03-21', kind: 'solar' },
+  { name: '清明', start_date: '2027-04-05', end_date: '2027-04-05', kind: 'solar' },
+  { name: '谷雨', start_date: '2027-04-20', end_date: '2027-04-20', kind: 'solar' },
+  { name: '立夏', start_date: '2027-05-06', end_date: '2027-05-06', kind: 'solar' },
+  { name: '小满', start_date: '2027-05-21', end_date: '2027-05-21', kind: 'solar' },
+  { name: '芒种', start_date: '2027-06-06', end_date: '2027-06-06', kind: 'solar' },
+  { name: '夏至', start_date: '2027-06-21', end_date: '2027-06-21', kind: 'solar' },
+  { name: '小暑', start_date: '2027-07-07', end_date: '2027-07-07', kind: 'solar' },
+  { name: '大暑', start_date: '2027-07-23', end_date: '2027-07-23', kind: 'solar' },
+  { name: '立秋', start_date: '2027-08-08', end_date: '2027-08-08', kind: 'solar' },
+  { name: '处暑', start_date: '2027-08-23', end_date: '2027-08-23', kind: 'solar' },
+  { name: '白露', start_date: '2027-09-08', end_date: '2027-09-08', kind: 'solar' },
+  { name: '秋分', start_date: '2027-09-23', end_date: '2027-09-23', kind: 'solar' },
+  { name: '寒露', start_date: '2027-10-08', end_date: '2027-10-08', kind: 'solar' },
+  { name: '霜降', start_date: '2027-10-23', end_date: '2027-10-23', kind: 'solar' },
+  { name: '立冬', start_date: '2027-11-07', end_date: '2027-11-07', kind: 'solar' },
+  { name: '小雪', start_date: '2027-11-22', end_date: '2027-11-22', kind: 'solar' },
+  { name: '大雪', start_date: '2027-12-07', end_date: '2027-12-07', kind: 'solar' },
+  { name: '冬至', start_date: '2027-12-22', end_date: '2027-12-22', kind: 'solar' },
+];
+
+// 纪念日/非放假节日（kind: 'festival'：仅日历展示，不停课）
+const FESTIVALS = [
+  { name: '学雷锋纪念日', start_date: '2026-03-05', end_date: '2026-03-05', kind: 'festival' },
+  { name: '全民国家安全教育日', start_date: '2026-04-15', end_date: '2026-04-15', kind: 'festival' },
+  { name: '中国航天日', start_date: '2026-04-24', end_date: '2026-04-24', kind: 'festival' },
+  { name: '全国防灾减灾日', start_date: '2026-05-12', end_date: '2026-05-12', kind: 'festival' },
+  { name: '国际禁毒日', start_date: '2026-06-26', end_date: '2026-06-26', kind: 'festival' },
+  { name: '中国人民抗日战争胜利纪念日', start_date: '2026-09-03', end_date: '2026-09-03', kind: 'festival' },
+  { name: '教师节', start_date: '2026-09-10', end_date: '2026-09-10', kind: 'festival' },
+  { name: '九一八事变纪念日', start_date: '2026-09-18', end_date: '2026-09-18', kind: 'festival' },
+  { name: '烈士纪念日', start_date: '2026-09-30', end_date: '2026-09-30', kind: 'festival' },
+  { name: '国家宪法日', start_date: '2026-12-04', end_date: '2026-12-04', kind: 'festival' },
+  { name: '南京大屠杀死难者国家公祭日', start_date: '2026-12-13', end_date: '2026-12-13', kind: 'festival' },
+  { name: '学雷锋纪念日', start_date: '2027-03-05', end_date: '2027-03-05', kind: 'festival' },
+  { name: '全民国家安全教育日', start_date: '2027-04-15', end_date: '2027-04-15', kind: 'festival' },
+  { name: '中国航天日', start_date: '2027-04-24', end_date: '2027-04-24', kind: 'festival' },
+  { name: '全国防灾减灾日', start_date: '2027-05-12', end_date: '2027-05-12', kind: 'festival' },
+  { name: '国际禁毒日', start_date: '2027-06-26', end_date: '2027-06-26', kind: 'festival' },
+  { name: '中国人民抗日战争胜利纪念日', start_date: '2027-09-03', end_date: '2027-09-03', kind: 'festival' },
+  { name: '教师节', start_date: '2027-09-10', end_date: '2027-09-10', kind: 'festival' },
+  { name: '九一八事变纪念日', start_date: '2027-09-18', end_date: '2027-09-18', kind: 'festival' },
+  { name: '烈士纪念日', start_date: '2027-09-30', end_date: '2027-09-30', kind: 'festival' },
+  { name: '国家宪法日', start_date: '2027-12-04', end_date: '2027-12-04', kind: 'festival' },
+  { name: '南京大屠杀死难者国家公祭日', start_date: '2027-12-13', end_date: '2027-12-13', kind: 'festival' },
+];
+
 // 素养词库（五类共 180 条，来源 server/culture_data.mjs；覆盖一学期 100+ 教学日不重复）
 const CULTURE = [...EDUCATION_PROVERB, ...CLASSIC_POETRY, ...EDUCATION_PHILOSOPHY, ...EDUCATION_THEORY, ...EDUCATION_PSYCHOLOGY];
 
@@ -133,7 +211,7 @@ export function seedIfEmpty() {
     writeJSON(P.presets, { schema_version: '1.0', data: { items: PRESETS } });
   }
   if (!exists(P.holidays)) {
-    writeJSON(P.holidays, { schema_version: '1.0', data: { items: HOLIDAYS } });
+    writeJSON(P.holidays, { schema_version: '1.0', data: { items: [...HOLIDAYS, ...SOLAR_TERMS, ...FESTIVALS] } });
   }
   if (!exists(P.theme)) {
     writeJSON(P.theme, {

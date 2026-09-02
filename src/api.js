@@ -61,6 +61,12 @@ export const api = {
   importBirthdays: (sid, rows) => req('POST', `/${sid}/birthdays/import`, { rows }),
   delBirthday: (sid, bid) => req('DELETE', `/${sid}/birthdays/${bid}`),
 
+  periods: (sid) => req('GET', `/${sid}/periods`),
+  savePeriods: (sid, periods) => req('PUT', `/${sid}/periods`, { periods }),
+  makeupDays: (sid) => req('GET', `/${sid}/makeup-days`),
+  saveMakeupDays: (sid, days) => req('PUT', `/${sid}/makeup-days`, { makeup_days: days }),
+  syncPortfolioClasses: () => req('POST', '/classes/sync-portfolio'),
+
   weekView: (sid, week) => req('GET', `/${sid}/week-view?week=${week}`),
   fullView: (sid) => req('GET', `/${sid}/full-view`),
   todos: (sid, date) => req('GET', `/${sid}/todos?date=${date}`),
