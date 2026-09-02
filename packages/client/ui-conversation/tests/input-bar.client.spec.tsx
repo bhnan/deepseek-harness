@@ -241,6 +241,20 @@ function attachmentOwner(slotCalls: readonly { key: string; owner: unknown }[]):
   throw new Error('attachment slot was not rendered')
 }
 
+function deferred<T>(): {
+  promise: Promise<T>
+  resolve: (value: T | PromiseLike<T>) => void
+  reject: (reason?: unknown) => void
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 describe('image draft rail', () => {
   it('collects clipboard files while preserving text from a mixed paste', () => {
     const addImages = vi.fn(() => null)
@@ -291,13 +305,86 @@ describe('image draft rail', () => {
     }])
     const result = bench({ uploadFiles })
     const file = new File(['x'], 'design notes.md', { type: 'text/markdown' })
+    let uploadPromise!: Promise<void>
 
-    act(() => {
-      attachmentOwner(result.slotCalls).onUploadFiles?.([file])
-    })
-    await act(async () => {})
+    act(() => { uploadPromise = attachmentOwner(result.slotCalls).onUploadFiles!([file]) })
+    await act(async () => { await uploadPromise })
 
     expect(result.shell.snapshot.draft).toBe('@"uploads/design notes.md" ')
+  })
+
+  it('uploads ordinary workspace files one at a time in input order', async () => {
+    const firstUpload = deferred<readonly { path: string; name: string; bytes: number; sha256: string }[]>()
+    const secondUpload = deferred<readonly { path: string; name: string; bytes: number; sha256: string }[]>()
+    const first = new File(['first'], 'first.md', { type: 'text/markdown' })
+    const second = new File(['second'], 'second.md', { type: 'text/markdown' })
+    const uploadFiles = vi.fn((files: readonly File[]) => files[0] === first ? firstUpload.promise : secondUpload.promise)
+    const result = bench({ uploadFiles })
+    const owner = attachmentOwner(result.slotCalls)
+    let uploadPromise!: Promise<void>
+
+    act(() => { uploadPromise = owner.onUploadFiles!([first, second]) })
+    expect(uploadFiles).toHaveBeenCalledTimes(1)
+    expect(uploadFiles).toHaveBeenNthCalledWith(1, [first])
+
+    await act(async () => {
+      firstUpload.resolve([{ path: 'uploads/first.md', name: first.name, bytes: first.size, sha256: '0'.repeat(64) }])
+      await Promise.resolve()
+    })
+    expect(result.shell.snapshot.draft).toBe('@uploads/first.md ')
+    expect(uploadFiles).toHaveBeenCalledTimes(2)
+    expect(uploadFiles).toHaveBeenNthCalledWith(2, [second])
+
+    await act(async () => {
+      secondUpload.resolve([{ path: 'uploads/second.md', name: second.name, bytes: second.size, sha256: '0'.repeat(64) }])
+      await uploadPromise
+    })
+    expect(result.shell.snapshot.draft).toBe('@uploads/first.md @uploads/second.md ')
+  })
+
+  it('rejects an oversized workspace file locally before upload', async () => {
+    const uploadFiles = vi.fn(async () => [])
+    const result = bench({ uploadFiles })
+    const file = new File(['x'], 'large.bin', { type: 'application/octet-stream' })
+    Object.defineProperty(file, 'size', { value: 32 * 1024 * 1024 + 1 })
+    let uploadPromise!: Promise<void>
+
+    act(() => { uploadPromise = attachmentOwner(result.slotCalls).onUploadFiles!([file]) })
+    await act(async () => { await uploadPromise })
+
+    expect(uploadFiles).not.toHaveBeenCalled()
+    expect(result.view.getByRole('alert').textContent).toContain('32MB')
+  })
+
+  it('continues after a failed workspace file and keeps successful paths with the draft', async () => {
+    const failedUpload = deferred<readonly { path: string; name: string; bytes: number; sha256: string }[]>()
+    const successfulUpload = deferred<readonly { path: string; name: string; bytes: number; sha256: string }[]>()
+    const failed = new File(['failed'], 'failed.md', { type: 'text/markdown' })
+    const successful = new File(['successful'], 'successful.md', { type: 'text/markdown' })
+    const uploadFiles = vi.fn((files: readonly File[]) => files[0] === failed ? failedUpload.promise : successfulUpload.promise)
+    const result = bench({ uploadFiles, draft: 'keep this draft' })
+    let uploadPromise!: Promise<void>
+
+    act(() => { uploadPromise = attachmentOwner(result.slotCalls).onUploadFiles!([failed, successful]) })
+    expect(uploadFiles).toHaveBeenCalledTimes(1)
+    expect(uploadFiles).toHaveBeenNthCalledWith(1, [failed])
+
+    await act(async () => {
+      failedUpload.reject(new Error('offline'))
+      await Promise.resolve()
+    })
+    expect(uploadFiles).toHaveBeenCalledTimes(2)
+    expect(uploadFiles).toHaveBeenNthCalledWith(2, [successful])
+
+    await act(async () => {
+      successfulUpload.resolve([{
+        path: 'uploads/successful.md', name: successful.name, bytes: successful.size, sha256: '0'.repeat(64),
+      }])
+      await uploadPromise
+    })
+    expect(result.shell.snapshot.draft).toContain('keep this draft')
+    expect(result.shell.snapshot.draft).toContain('@uploads/successful.md ')
+    expect(result.view.getByRole('alert').textContent).toContain('文件上传失败（offline）')
   })
 
   it('keeps the draft and surfaces a toast when workspace upload fails', async () => {

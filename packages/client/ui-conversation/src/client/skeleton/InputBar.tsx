@@ -37,6 +37,9 @@ import css from './InputBar.module.css'
 /** Decoration product of the no-session state (no machine, empty draft). */
 const INERT_DECORATIONS: DraftDecorations = { token: null, chips: [], textRefs: [], hint: null }
 
+/** Default per-file workspace upload limit used before reading file bytes. */
+export const DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES = 32 * 1024 * 1024
+
 /** The selection and edit family a `beforeinput` recorded, with the draft length it applied to. */
 interface PendingEdit {
   readonly start: number
@@ -556,12 +559,21 @@ export function InputBar({
     keyboard.track(next, caret)
   }, [keyboard, showToast, t])
 
-  const uploadWorkspaceFiles = useCallback((files: readonly File[]): Promise<void> => {
-    if (uploadFiles === undefined || files.length === 0) return Promise.resolve()
-    return uploadFiles(files).then(insertUploadedFiles).catch((error: unknown) => {
-      const reason = error instanceof Error ? error.message : String(error)
-      showToast(t('file.uploadFailed', { reason }))
-    })
+  const uploadWorkspaceFiles = useCallback(async (files: readonly File[]): Promise<void> => {
+    if (uploadFiles === undefined || files.length === 0) return
+    for (const file of files) {
+      if (file.size > DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES) {
+        showToast(t('file.fileTooLarge', { size: imageSizeText(DEFAULT_WORKSPACE_UPLOAD_MAX_BYTES) }))
+        continue
+      }
+      try {
+        const uploads = await uploadFiles([file])
+        insertUploadedFiles(uploads)
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error)
+        showToast(t('file.uploadFailed', { reason }))
+      }
+    }
   }, [insertUploadedFiles, showToast, t, uploadFiles])
 
   const intakeFiles = useCallback((files: readonly File[]): void => {
