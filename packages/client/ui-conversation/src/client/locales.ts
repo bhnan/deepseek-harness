@@ -250,7 +250,7 @@ export const en = {
   'file.uploading': 'Uploading…',
   'file.invalidPath': 'The uploaded file returned an invalid path; try again',
   'file.uploadFailed': 'File upload failed ({reason})',
-  'file.fileTooLarge': 'Each file must be smaller than {size}',
+  'file.fileTooLarge': 'Each file must be no larger than {size}',
   'context.aria': '{percent} of context used',
   'context.used': 'of context used',
   'context.system': 'System prompt',
