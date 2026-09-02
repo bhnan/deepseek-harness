@@ -61,15 +61,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
           host_tarballs=(dist/npm/deepseek-ai-dsh-host-apiproxy-*.tgz)
           conversation_tarballs=(dist/npm/deepseek-ai-dsh-client-ui-conversation-*.tgz)
+          attachment_tarballs=(dist/npm/deepseek-ai-dsh-client-ui-attachment-*.tgz)
           test "${#host_tarballs[@]}" -eq 1
           test "${#conversation_tarballs[@]}" -eq 1
+          test "${#attachment_tarballs[@]}" -eq 1
           tar -tzf "${host_tarballs[0]}" | grep -F 'package/lib/types/workspace-upload.js'
           tar -xOzf "${host_tarballs[0]}" package/lib/index.js > "$RUNNER_TEMP/dsh-host-apiproxy.js"
           grep -F 'saveWorkspaceUpload' "$RUNNER_TEMP/dsh-host-apiproxy.js"
           tar -xOzf "${conversation_tarballs[0]}" package/lib/client.js > "$RUNNER_TEMP/dsh-client-ui-conversation.js"
           grep -F 'uploadFiles' "$RUNNER_TEMP/dsh-client-ui-conversation.js"
+          tar -tzf "${attachment_tarballs[0]}" | grep -F 'package/lib/client.js'
+          tar -xOzf "${attachment_tarballs[0]}" package/lib/client.js > "$RUNNER_TEMP/dsh-client-ui-attachment.js"
+          grep -F 'data-file-picker-kind' "$RUNNER_TEMP/dsh-client-ui-attachment.js"
       - name: Assemble installer staging
         env:
           PRIVATE_VERSION: ${{ inputs.private_version || '0.1' }}

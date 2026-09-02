@@ -45,6 +45,26 @@ describe('CI workflow', () => {
     expect(uploadPayload.run).toContain('workspace-upload.js')
     expect(uploadPayload.run).toContain('saveWorkspaceUpload')
     expect(uploadPayload.run).toContain('uploadFiles')
+    expect(
+      uploadPayload.run,
+      'workspace upload payload guard must locate the @deepseek-ai/dsh-client-ui-attachment tarball',
+    ).toContain('attachment_tarballs=(dist/npm/deepseek-ai-dsh-client-ui-attachment-*.tgz)')
+    expect(
+      uploadPayload.run,
+      'workspace upload payload guard must fail when the attachment tarball is missing',
+    ).toContain('test "${#attachment_tarballs[@]}" -eq 1')
+    expect(
+      uploadPayload.run,
+      'workspace upload payload guard must inspect the attachment tarball contents',
+    ).toContain("tar -tzf \"${attachment_tarballs[0]}\" | grep -F 'package/lib/client.js'")
+    expect(
+      uploadPayload.run,
+      'workspace upload payload guard must extract the attachment bundle before checking it',
+    ).toContain('tar -xOzf "${attachment_tarballs[0]}" package/lib/client.js > "$RUNNER_TEMP/dsh-client-ui-attachment.js"')
+    expect(
+      uploadPayload.run,
+      'workspace upload payload guard must verify the mobile picker marker in the attachment bundle',
+    ).toContain("grep -F 'data-file-picker-kind' \"$RUNNER_TEMP/dsh-client-ui-attachment.js\"")
     const smoke: unknown = steps.find(step => isRecord(step) && step.name === 'Verify packed installer')
     expect(smoke).toMatchObject({ shell: 'bash' })
     if (!isRecord(smoke) || typeof smoke.run !== 'string') throw new TypeError('packed installer smoke must define a run script')
