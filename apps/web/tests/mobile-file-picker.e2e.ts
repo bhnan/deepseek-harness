@@ -89,9 +89,17 @@ describe('web e2e: mobile workspace file picker', () => {
     await attach.click()
     const dialog = activePage.getByRole('dialog', { name: 'Attach a file', exact: true })
     await dialog.waitFor({ timeout: 10_000 })
-    expect(await dialog.getByRole('button', { name: 'Choose file', exact: true }).count()).toBe(1)
+    const chooseFile = dialog.getByRole('button', { name: 'Choose file', exact: true })
+    expect(await chooseFile.count()).toBe(1)
 
-    await activePage.setInputFiles('input[data-file-picker-kind="file"]', {
+    const [fileChooser] = await Promise.all([
+      activePage.waitForEvent('filechooser'),
+      chooseFile.click(),
+    ])
+    const genericInput = fileChooser.element()
+    expect(await genericInput.getAttribute('data-file-picker-kind')).toBe('file')
+    expect(await genericInput.getAttribute('accept')).toBeNull()
+    await fileChooser.setFiles({
       name: FILE_NAME,
       mimeType: 'text/markdown',
       buffer: Buffer.from(FILE_CONTENT),
@@ -111,7 +119,14 @@ describe('web e2e: mobile workspace file picker', () => {
     await expect.poll(() => dialog.count(), { timeout: 10_000 }).toBe(0)
     await attach.click()
     await dialog.waitFor({ timeout: 10_000 })
-    await activePage.setInputFiles('input[data-file-picker-kind="photos"]', {
+    const [photoChooser] = await Promise.all([
+      activePage.waitForEvent('filechooser'),
+      dialog.getByRole('button', { name: 'Choose photos', exact: true }).click(),
+    ])
+    const photoInput = photoChooser.element()
+    expect(await photoInput.getAttribute('data-file-picker-kind')).toBe('photos')
+    expect(await photoInput.getAttribute('accept')).toContain('image/*')
+    await photoChooser.setFiles({
       name: IMAGE_NAME,
       mimeType: 'image/png',
       buffer: PNG,
