@@ -156,64 +156,72 @@ export function FilePicker({ disabled, labels, onFiles }: FilePickerProps) {
         {labels.button}
       </button>
       {open && (
-        <div
-          ref={dialogRef}
-          className={css.surface}
-          role="dialog"
-          aria-modal="true"
-          aria-label={labels.dialog}
-          aria-busy={uploading}
-          tabIndex={-1}
-          onKeyDown={handleDialogKeyDown}
-        >
-          <div className={css.actions}>
-            <button
-              ref={chooseFileRef}
-              type="button"
-              className={css.action}
-              disabled={disabled || uploading}
-              onClick={() => { chooseInput('file') }}
-            >
-              {labels.chooseFile}
-            </button>
-            <button
-              type="button"
-              className={css.action}
-              disabled={disabled || uploading}
-              onClick={() => { chooseInput('photos') }}
-            >
-              {labels.choosePhotos}
-            </button>
-            <button type="button" className={css.cancel} onClick={closePicker}>
-              {labels.cancel}
-            </button>
-          </div>
-          {uploading && (
-            <div className={css.status} role="status" aria-live="polite">
-              {labels.uploading}
+        <div className={css.overlay}>
+          <div
+            className={css.backdrop}
+            data-file-picker-backdrop
+            aria-hidden="true"
+            onClick={closePicker}
+          />
+          <div
+            ref={dialogRef}
+            className={css.surface}
+            role="dialog"
+            aria-modal="true"
+            aria-label={labels.dialog}
+            aria-busy={uploading}
+            tabIndex={-1}
+            onKeyDown={handleDialogKeyDown}
+          >
+            <div className={css.actions}>
+              <button
+                ref={chooseFileRef}
+                type="button"
+                className={css.action}
+                disabled={disabled || uploading}
+                onClick={() => { chooseInput('file') }}
+              >
+                {labels.chooseFile}
+              </button>
+              <button
+                type="button"
+                className={css.action}
+                disabled={disabled || uploading}
+                onClick={() => { chooseInput('photos') }}
+              >
+                {labels.choosePhotos}
+              </button>
+              <button type="button" className={css.cancel} onClick={closePicker}>
+                {labels.cancel}
+              </button>
             </div>
-          )}
-          <input
-            ref={fileInputRef}
-            className={css.visuallyHidden}
-            data-file-picker-kind="file"
-            type="file"
-            multiple
-            disabled={disabled || uploading}
-            tabIndex={-1}
-            onChange={handleChange}
-          />
-          <input
-            ref={photosInputRef}
-            className={css.visuallyHidden}
-            data-file-picker-kind="photos"
-            type="file"
-            accept="image/*"
-            multiple
-            disabled={disabled || uploading}
-            tabIndex={-1}
-            onChange={handleChange}
-          />
+            {uploading && (
+              <div className={css.status} role="status" aria-live="polite">
+                {labels.uploading}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              className={css.visuallyHidden}
+              data-file-picker-kind="file"
+              type="file"
+              multiple
+              disabled={disabled || uploading}
+              tabIndex={-1}
+              onChange={handleChange}
+            />
+            <input
+              ref={photosInputRef}
+              className={css.visuallyHidden}
+              data-file-picker-kind="photos"
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={disabled || uploading}
+              tabIndex={-1}
+              onChange={handleChange}
+            />
+          </div>
         </div>
       )}
     </div>

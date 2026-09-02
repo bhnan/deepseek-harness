@@ -140,6 +140,22 @@ describe('FilePicker', () => {
     expect(view.queryByRole('dialog', { name: labels.dialog })).toBeNull()
   })
 
+  it('closes on backdrop press but not when dialog content is pressed', () => {
+    const view = render(<FilePicker {...props()} />)
+    const trigger = view.getByRole('button', { name: labels.button })
+    fireEvent.click(trigger)
+    const dialog = view.getByRole('dialog', { name: labels.dialog })
+    const backdrop = view.container.querySelector<HTMLElement>('[data-file-picker-backdrop]')
+    if (backdrop === null) throw new Error('missing file picker backdrop')
+
+    fireEvent.click(dialog)
+    expect(view.queryByRole('dialog', { name: labels.dialog })).not.toBeNull()
+
+    fireEvent.click(backdrop)
+    expect(view.queryByRole('dialog', { name: labels.dialog })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it('closes on Escape', () => {
     const view = render(<FilePicker {...props()} />)
     fireEvent.click(view.getByRole('button', { name: labels.button }))

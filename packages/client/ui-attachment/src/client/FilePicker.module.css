@@ -31,6 +31,17 @@
   opacity: 0.5;
 }
 
+.overlay {
+  position: static;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  background: transparent;
+}
+
 .surface {
   position: absolute;
   left: 0;
@@ -101,6 +112,11 @@
 }
 
 @media (max-width: 600px) {
+  .backdrop {
+    background: var(--dsw-alias-bg-mask-1);
+    backdrop-filter: var(--dsw-mask-blur);
+  }
+
   .surface {
     position: fixed;
     right: 0;
