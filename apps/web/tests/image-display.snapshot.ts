@@ -78,7 +78,7 @@ it('renders the history image pair through the authorized attachment route and o
   })
 })
 
-it('accepts pasted images into the composer rail in order and removes them', async () => {
+it('accepts pasted images into the composer rail and uploads ordinary files', async () => {
   mountAssembledApp()
 
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
@@ -88,7 +88,7 @@ it('accepts pasted images into the composer rail in order and removes them', asy
 
   // Image-only send arming is pinned at package level (input-bar.spec.tsx);
   // this assembled lane pins the intake chain over the built graph.
-  const textarea = await screen.findByPlaceholderText('Describe what you want to build', {}, { timeout: 10_000 })
+  const textarea = await screen.findByPlaceholderText('Describe what you want to build', {}, { timeout: 10_000 }) as HTMLTextAreaElement
   const image = new File([new Uint8Array([137, 80, 78, 71])], 'pasted.png', { type: 'image/png' })
   fireEvent.paste(textarea, {
     clipboardData: {
@@ -134,23 +134,20 @@ it('accepts pasted images into the composer rail in order and removes them', asy
     expect(document.querySelector('[role="group"][aria-label="Pending images"]')).toBeNull()
   })
 
-  // An unsupported file announces a transient toast (the inline strip is
-  // gone) and the banner dismisses itself after its hold-and-fade lifetime.
+  // A non-image file follows the workspace upload path and inserts the
+  // returned workspace-relative path as a mention in the draft.
   fireEvent.paste(textarea, {
     clipboardData: {
       items: [{ kind: 'file', type: 'text/plain', getAsFile: () => new File(['x'], 'notes.txt', { type: 'text/plain' }) }],
       getData: () => '',
     },
   })
-  const unsupportedMessage = 'Only PNG, JPG, WebP, and GIF images are supported'
-  const toast = await screen.findByText(unsupportedMessage)
-  expect(toast.closest('[role="alert"]')).not.toBeNull()
   await waitFor(() => {
-    expect(screen.queryByText(unsupportedMessage)).toBeNull()
-  }, { timeout: 6_000 })
+    expect(textarea.value).toContain('@uploads/notes.txt')
+  }, { timeout: 5_000 })
 })
 
-it('accepts a whole-page drop under the limits-labeled overlay and refuses an over-limit batch at intake', async () => {
+it('accepts a whole-page drop under the file-upload overlay and refuses an over-limit image batch at intake', async () => {
   mountAssembledApp()
 
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
@@ -159,17 +156,14 @@ it('accepts a whole-page drop under the limits-labeled overlay and refuses an ov
   fireEvent.click(start)
   const textarea = await screen.findByPlaceholderText('Describe what you want to build', {}, { timeout: 10_000 })
 
-  // A file drag anywhere over the page raises the full-viewport overlay whose
-  // desc line carries the projected limits — copy that can only render after
-  // the imageLimits projection crossed the real fixture transport.
+  // A file drag anywhere over the page raises the full-viewport overlay with
+  // the generic workspace-upload copy.
   const image = new File([new Uint8Array([137, 80, 78, 71])], 'dropped.png', { type: 'image/png' })
   const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'none' }
   fireEvent.dragEnter(document.body, { dataTransfer })
   const overlay = await screen.findByRole('status')
-  expect(overlay.textContent).toContain('Drag images here to add them')
-  await waitFor(() => {
-    expect(overlay.textContent).toContain('Up to 20 images, 5MB each')
-  })
+  expect(overlay.textContent).toContain('Drag files here to upload them')
+  expect(overlay.textContent).toContain('Files are saved to the current workspace for the agent to read and parse')
 
   // Dropping on the transcript area (not the composer card) lands in the rail.
   fireEvent.drop(document.body, { dataTransfer })
