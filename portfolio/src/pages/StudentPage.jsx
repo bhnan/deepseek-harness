@@ -4,7 +4,7 @@ import Chart, { lineOption, barOption, radarOption } from '../components/Chart.j
 
 const TABS = [
   ['base', '基础信息'], ['scores', '成绩分析'], ['hw', '作业台账'],
-  ['honor', '特长荣誉'], ['moral', '心理德育'], ['materials', '成长素材'], ['comments', '智能评语'],
+  ['honor', '特长荣誉'], ['moral', '心理德育'], ['talk', '谈话记录'], ['materials', '成长素材'], ['comments', '智能评语'],
 ];
 const CAT = { emotion: '心理', family: '家庭', relationship: '人际', conduct: '品德', reward: '奖励', punish: '违纪', volunteer: '志愿', other: '其他' };
 
@@ -22,6 +22,8 @@ export default function StudentPage({ sid, initialTab, onBack, notify, refreshKe
   const [morals, setMorals] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [comments, setComments] = useState([]);
+  const [talks, setTalks] = useState([]);
+  const [talkForm, setTalkForm] = useState({ date: '', talk_type: '谈心', summary: '', location: '', follow_up: '', recorder: '', note: '' });
   const [showSensitive, setShowSensitive] = useState(false);
   const [editBase, setEditBase] = useState(false);
   const [baseForm, setBaseForm] = useState({});
@@ -47,6 +49,7 @@ export default function StudentPage({ sid, initialTab, onBack, notify, refreshKe
     api.listMoral(sid).then((d) => setMorals(d.records)).catch(() => {});
     api.listMaterials(`?owner_id=${sid}`).then((d) => setMaterials(d.materials)).catch(() => {});
     api.listComments(sid).then((d) => setComments(d.comments)).catch(() => {});
+    api.listTalks(sid).then((d) => setTalks(d.records || [])).catch(() => {});
   }, [sid, refreshKey, tick]);
 
   // 班级最近考试均分（雷达对比用）
@@ -131,6 +134,14 @@ export default function StudentPage({ sid, initialTab, onBack, notify, refreshKe
   const removeMoral = async (id) => {
     if (!confirm('删除该德育记录？')) return;
     try { await api.deleteMoral(id); notify('已删除'); reloadData(); } catch (e) { notify(e.message); }
+  };
+  const addTalk = async () => {
+    if (!talkForm.date || !talkForm.summary) { notify('请填写日期与谈话摘要'); return; }
+    try { await api.addTalk(sid, talkForm); setTalkForm({ date: '', talk_type: '谈心', summary: '', location: '', follow_up: '', recorder: '', note: '' }); notify('谈话记录已添加'); reloadData(); } catch (e) { notify(e.message); }
+  };
+  const removeTalk = async (id) => {
+    if (!confirm('删除该谈话记录？')) return;
+    try { await api.deleteTalk(id); notify('已删除'); reloadData(); } catch (e) { notify(e.message); }
   };
   const uploadMaterial = async (files) => {
     for (const f of files) {
@@ -472,6 +483,38 @@ export default function StudentPage({ sid, initialTab, onBack, notify, refreshKe
             </div>
           ))}
           {morals.length === 0 && <div className="tips">暂无记录</div>}
+        </div>
+      )}
+
+      {/* ---------- 谈话记录 ---------- */}
+      {tab === 'talk' && (
+        <div className="card">
+          <h4>💬 学生谈话记录（共 {talks.length} 条）</h4>
+          <div className="panel">
+            <div className="row">
+              <input type="date" value={talkForm.date} onChange={(e) => setTalkForm({ ...talkForm, date: e.target.value })} />
+              <select value={talkForm.talk_type} onChange={(e) => setTalkForm({ ...talkForm, talk_type: e.target.value })}>
+                {['谈心', '批评', '鼓励', '家访', '电话', '微信', '约谈', '周记回复', '家长来访', '其他'].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input placeholder="谈话摘要*" value={talkForm.summary} onChange={(e) => setTalkForm({ ...talkForm, summary: e.target.value })} style={{ flex: 1 }} />
+              <input placeholder="地点（选填）" value={talkForm.location} onChange={(e) => setTalkForm({ ...talkForm, location: e.target.value })} style={{ width: 100 }} />
+            </div>
+            <div className="row" style={{ marginTop: 4 }}>
+              <input placeholder="记录人（如：班主任）" value={talkForm.recorder} onChange={(e) => setTalkForm({ ...talkForm, recorder: e.target.value })} style={{ width: 120 }} />
+              <input placeholder="跟进事项" value={talkForm.follow_up} onChange={(e) => setTalkForm({ ...talkForm, follow_up: e.target.value })} style={{ flex: 1 }} />
+              <input placeholder="备注" value={talkForm.note} onChange={(e) => setTalkForm({ ...talkForm, note: e.target.value })} style={{ flex: 1 }} />
+              <button className="btn primary sm" onClick={addTalk}>添加</button>
+            </div>
+          </div>
+          {talks.map((r, i) => (
+            <div key={i} className="concern-item">
+              <b>{r.date} · {r.talk_type}</b>
+              {r.recorder && <span className="tips"> 记录：{r.recorder}</span>}
+              <button className="btn danger xs" style={{ float: 'right' }} onClick={() => removeTalk(r.id)}>🗑</button>
+              <div className="tips">{r.summary}{r.location ? `｜地点：${r.location}` : ''}{r.follow_up ? `｜跟进：${r.follow_up}` : ''}{r.note ? `｜备注：${r.note}` : ''}</div>
+            </div>
+          ))}
+          {talks.length === 0 && <div className="tips">暂无谈话记录</div>}
         </div>
       )}
 

@@ -75,6 +75,12 @@ export const api = {
   deleteMoral: (rid) => req('DELETE', `/moral-records/${rid}`),
   moralReport: (sid, semester = '') => req('GET', `/students/${sid}/moral-report${semester ? `?semester=${semester}` : ''}`),
 
+  // 学生谈话记录
+  addTalk: (sid, body) => req('POST', `/students/${sid}/talk-records`, body),
+  listTalks: (sid, params = '') => req('GET', `/students/${sid}/talk-records${params}`),
+  updateTalk: (rid, body) => req('PUT', `/talk-records/${rid}`, body),
+  deleteTalk: (rid) => req('DELETE', `/talk-records/${rid}`),
+
   // 特长荣誉
   addTalent: (sid, body) => req('POST', `/students/${sid}/talents`, body),
   listTalents: (sid) => req('GET', `/students/${sid}/talents`),
