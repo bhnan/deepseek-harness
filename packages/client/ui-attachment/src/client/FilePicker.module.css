@@ -11,9 +11,10 @@
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  margin-inline: 2px 4px;
 }
 
 .trigger:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
 .trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .trigger:disabled { cursor: default; opacity: .45; }
-.icon { font-size: 18px; line-height: 1; }
+.icon { width: 17px; height: 17px; }
