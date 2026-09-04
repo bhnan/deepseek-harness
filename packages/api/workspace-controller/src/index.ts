@@ -6,6 +6,7 @@ import { WorkspaceCommands } from './commands.ts'
 import { DirectoryPickerController } from './directory-picker.ts'
 import { WorkspaceFeed } from './feed.ts'
 import { WorkspaceFilesController } from './workspace-files.ts'
+import { saveWorkspaceUpload, WorkspaceUploadError } from './workspace-upload.ts'
 import type {
   WorkspaceArchiveSessionRequest,
   WorkspaceArchiveValue,
@@ -19,6 +20,8 @@ import type {
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
   WorkspaceValue,
+  WorkspaceUploadRequest,
+  WorkspaceUploadValue,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -109,6 +112,18 @@ export class WorkspaceController extends TypertRemoteService {
   @Remote('archiveSession')
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue> {
     return this.commands.archiveSession(request)
+  }
+
+  @Remote('uploadFile')
+  async uploadFile(request: WorkspaceUploadRequest): Promise<WorkspaceUploadValue> {
+    const workspace = this.ctx.workspaceRegistry.get(request.workspaceId)
+    if (workspace === undefined) throw new RemoteError('workspace/not-found', `Workspace "${request.workspaceId}" not found`, { workspaceId: request.workspaceId })
+    try {
+      return await saveWorkspaceUpload(workspace.path, request)
+    } catch (error: unknown) {
+      if (error instanceof WorkspaceUploadError) throw new RemoteError('workspace-upload/invalid', error.message, { workspaceId: request.workspaceId })
+      throw error
+    }
   }
 
   /**

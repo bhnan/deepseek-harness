@@ -94,12 +94,28 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'directory-picker/create-failed': { readonly path: string }
     /** A workspace-files path is not fully qualified, not a readable directory, or not a regular file. */
     'workspace-files/unreadable': { readonly path: string }
+    'workspace-upload/invalid': { readonly workspaceId?: WorkspaceId }
   }
 }
 
 /** Existing directory requested for Workspace adoption. */
 export interface WorkspaceCreateRequest {
   readonly path: string
+}
+
+export interface WorkspaceUploadRequest {
+  readonly workspaceId: WorkspaceId
+  readonly name: string
+  readonly mediaType?: string
+  readonly data: string
+}
+
+export interface WorkspaceUploadValue {
+  readonly path: string
+  readonly name: string
+  readonly bytes: number
+  readonly sha256: string
+  readonly mediaType?: string
 }
 
 /** Created or previously registered Workspace. */

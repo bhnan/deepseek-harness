@@ -6,6 +6,7 @@ import { AttachmentRail } from '../AttachmentRail.tsx'
 import type { AttachmentRailItem } from '../AttachmentRail.tsx'
 import { DropOverlay } from '../DropOverlay.tsx'
 import { ImageLightbox } from '../ImageLightbox.tsx'
+import { FilePicker } from './FilePicker.tsx'
 import { attachmentRailLabels, dropOverlayLabels, lightboxLabels } from './labels.ts'
 import css from './ComposerAttachments.module.css'
 
@@ -16,7 +17,7 @@ interface ComposerRailItem extends AttachmentRailItem {
 
 /** Draft-image rail, document drop target, and original-image preview slot entry. */
 export function ComposerAttachments({
-  attachments, canAcceptDrop, onAddImages, onRemoveImage, dropLimits, t,
+  attachments, canAcceptDrop, onAddImages, onUploadFiles, onRemoveImage, dropLimits, t,
 }: ComposerAttachmentsProps) {
   const [preview, setPreview] = useState<ComposerAttachment | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -62,7 +63,13 @@ export function ComposerAttachments({
       if (dataTransfer === null) return
       event.preventDefault()
       reset()
-      if (canAcceptDrop) onAddImages([...dataTransfer.files])
+      if (canAcceptDrop) {
+        const files = [...dataTransfer.files]
+        const images = files.filter(file => file.type.startsWith('image/'))
+        const documents = files.filter(file => !file.type.startsWith('image/'))
+        if (images.length > 0) onAddImages(images)
+        if (documents.length > 0) void onUploadFiles?.(documents)
+      }
     }
     document.addEventListener('dragenter', onDragEnter)
     document.addEventListener('dragover', onDragOver)
@@ -103,6 +110,14 @@ export function ComposerAttachments({
             onRemove={(item) => { onRemoveImage(item.attachment.id) }}
           />
         </div>
+      )}
+      {onUploadFiles !== undefined && (
+        <FilePicker disabled={!canAcceptDrop} onFiles={(files) => {
+          const images = files.filter(file => file.type.startsWith('image/'))
+          const documents = files.filter(file => !file.type.startsWith('image/'))
+          if (images.length > 0) onAddImages(images)
+          if (documents.length > 0) return onUploadFiles(documents)
+        }} />
       )}
       {preview !== null && (
         <ImageLightbox

@@ -43,7 +43,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Services required by the Conversation plugin. */
 export const inject = [
-  'slots', 'sessions', 'uiSession', 'uiWorkspace', 'locale', 'settingsScope',
+  'slots', 'sessions', 'uiSession', 'uiWorkspace', 'workspaces', 'remote', 'locale', 'settingsScope',
 ]
 
 // Stable no-session sources keep the renderer's observable-hook cache and
@@ -70,6 +70,14 @@ interface WorkspaceNavigation {
   connectWorkspace(
     workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
   ): Promise<SessionId>
+}
+interface WorkspaceRemote { uploadFile(request: { workspaceId: string; name: string; mediaType: string; data: string }): Promise<unknown> }
+
+async function fileBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  let binary = ''
+  for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 /** Resolve the session-scoped Conversation action face, failing loud. */
@@ -98,6 +106,7 @@ export function apply(ctx: Context): void {
   const sessions = ctx.sessions
   const slots = ctx.slots
   const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
+  const workspaces = ctx.get('workspaces') as { list: { getSnapshot(): { items: readonly { workspaceId: string; sessionIds: readonly string[] }[] } } }
   const uiConversation = new UiConversation(ctx, sessions)
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
@@ -285,6 +294,7 @@ export function apply(ctx: Context): void {
         return {
           keyboard: undefined,
           addImages: undefined,
+          uploadFiles: undefined,
           removeImage: undefined,
           draftImages: undefined,
           resolveSubmitMode: (running, gesture, steeringAvailable) =>
@@ -336,6 +346,15 @@ export function apply(ctx: Context): void {
               span: { ...selection, draftRev: snapshot.draftRev },
             })
           },
+        uploadFiles: async (files: readonly File[]) => {
+          const workspaceId = workspaces.list.getSnapshot().items.find(workspace =>
+            workspace.sessionIds.includes(String(sessionId)))?.workspaceId
+          if (workspaceId === undefined) throw new Error('no active workspace')
+          for (const file of files) {
+            const remote = ctx.get('remote') as { workspace: WorkspaceRemote }
+            await remote.workspace.uploadFile({ workspaceId, name: file.name, mediaType: file.type, data: await fileBase64(file) })
+          }
+        },
         stop: () => {
           scopedConversation(sessions, sessionId).cancel().catch(() => {
             // Stop failure is published through Session promptError.
