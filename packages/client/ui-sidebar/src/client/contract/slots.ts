@@ -33,6 +33,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registers the browser.
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /** Optional wide-only workspace file tree and preview panel. */
+    'sidebar.filetree': { kind: 'single'; scope: 'root'; owner: SidebarFileTreeOwnerProps }
     /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
@@ -68,6 +70,14 @@ export interface SidebarSectionOwnerProps {
   wide: boolean
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
   expandSidebar: () => void
+}
+
+/** Sidebar state supplied to the optional workspace file-tree panel. */
+export interface SidebarFileTreeOwnerProps {
+  /** Whether the sidebar renders wide content. */
+  wide: boolean
+  /** Request expansion when the panel is embedded in a collapsed shell. */
+  expandSidebar?: () => void
 }
 
 /**
@@ -112,6 +122,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
     | 'sidebar.workspaces'
+    | 'sidebar.filetree'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

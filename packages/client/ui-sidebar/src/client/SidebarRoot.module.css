@@ -310,6 +310,16 @@
   overflow: hidden;
 }
 
+.fileArea {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 40%;
+  overflow: hidden;
+  margin-right: calc(-1 * var(--dsh-sidebar-inline-padding));
+}
+
 .collapsed .regionArea {
   margin-left: 0;
   margin-right: 0;

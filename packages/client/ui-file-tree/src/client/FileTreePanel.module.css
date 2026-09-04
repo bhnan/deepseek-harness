@@ -1,0 +1,12 @@
+.root { display:flex; flex-direction:column; min-height:0; overflow:hidden; border-top:1px solid var(--dsw-alias-line-divider); }
+.header { flex:none; display:flex; justify-content:space-between; align-items:center; padding:6px 8px; font-size:12px; font-weight:600; }
+.refresh { border:0; background:transparent; color:inherit; cursor:pointer; }
+.tree { overflow:auto; min-height:0; padding-bottom:4px; }
+.row { display:flex; align-items:center; gap:4px; width:100%; min-height:24px; padding-top:2px; padding-right:6px; padding-bottom:2px; border:0; background:transparent; color:inherit; text-align:left; font-size:12px; cursor:pointer; }
+.row:hover { background:var(--dsw-alias-interactive-bg-hover); }
+.chevron { display:inline-flex; transition:transform 120ms ease; }
+.chevron.open { transform:rotate(90deg); }
+.dim { opacity:.55; }
+.hint { padding-top:4px; padding-bottom:4px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); font-size:11px; text-align:left; }
+.preview { max-height:60vh; max-width:70vw; overflow:auto; white-space:pre-wrap; }
+.image { max-width:70vw; max-height:60vh; object-fit:contain; }

@@ -208,6 +208,12 @@ export function SidebarRoot({
         })}
       </div>
 
+      {wide && (
+        <div className={css.fileArea}>
+          {renderSlot('sidebar.filetree', { wide, expandSidebar: () => { if (collapsed) toggleSidebar() } }, { fallback: null })}
+        </div>
+      )}
+
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
         <div className={css.footerActions}>
