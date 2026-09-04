@@ -10,6 +10,7 @@
     "src/types.ts",
     "src/commands.ts",
     "src/directory-picker.ts",
+    "src/workspace-files.ts",
     "src/feed.ts"
   ],
   "references": [

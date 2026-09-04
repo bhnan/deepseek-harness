@@ -1,6 +1,6 @@
 /**
  * Browser-safe request, result, and state-stream vocabulary for the Workspace
- * and directory-picking Remote namespaces this package owns. The picking seam
+ * workspace-file and directory-picking Remote namespaces this package owns. The picking seam
  * declares its own listing types, so they are re-exported here rather than
  * restated: a browser consumer reads the very declaration the backend answers.
  */
@@ -10,6 +10,52 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
 export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 export type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
+
+/** One direct child returned by the authenticated workspace-files Remote. */
+export interface WorkspaceFileEntry {
+  /** Base name displayed in one tree row. */
+  readonly name: string
+  /** Fully qualified Host path; Clients never concatenate path segments. */
+  readonly path: string
+  /** POSIX dot-file convention as observed by the Host. */
+  readonly hidden: boolean
+}
+
+/** One bounded, sorted directory level for the workspace file tree. */
+export interface WorkspaceFileLevel {
+  /** Direct child directories, including enterable directory symlinks. */
+  readonly dirs: readonly WorkspaceFileEntry[]
+  /** Direct child regular files; file symlinks are excluded. */
+  readonly files: readonly WorkspaceFileEntry[]
+  /** Whether the Host cut the directory window. */
+  readonly dirsTruncated: boolean
+  /** Whether the Host cut the regular-file window. */
+  readonly filesTruncated: boolean
+}
+
+/** One server-bounded preview of a regular Host file. */
+export type WorkspaceFilePreview =
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'text'
+    readonly content: string
+    readonly truncated: boolean
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'image'
+    readonly content: string
+    readonly mime: string
+    readonly truncated: false
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'binary'
+    readonly truncated: false
+  }
 
 /** One durable Workspace projected for browser consumers. */
 export interface WorkspaceView {
@@ -46,6 +92,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'directory-picker/exists': { readonly path: string }
     /** The parent is not fully qualified, the name is not one segment, or creation failed. */
     'directory-picker/create-failed': { readonly path: string }
+    /** A workspace-files path is not fully qualified, not a readable directory, or not a regular file. */
+    'workspace-files/unreadable': { readonly path: string }
   }
 }
 
