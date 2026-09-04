@@ -96,6 +96,28 @@ async function upgrade(port: number, path: string): Promise<ReturnType<typeof co
   return socket
 }
 
+/** Open one upgrade request that the server is expected to reject by closing the socket. */
+async function rejectedUpgrade(port: number, path: string): Promise<void> {
+  const socket = connect(port, '127.0.0.1')
+  socket.on('error', () => {})
+  await once(socket, 'connect')
+  const closed = once(socket, 'close')
+  socket.write([
+    `GET ${path} HTTP/1.1`,
+    `Host: 127.0.0.1:${String(port)}`,
+    'Connection: Upgrade',
+    'Upgrade: dsh-test',
+    '',
+    '',
+  ].join('\r\n'))
+  await Promise.race([
+    closed,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => { reject(new Error('upgrade guard did not close the socket')) }, 2_000)
+    }),
+  ])
+}
+
 describe('real Loader composition', () => {
   it('applies gzip only to eligible socket-backed HTTP responses', { timeout: 60_000 }, async () => {
     expect(HttpServer.Config({ host: '127.0.0.1', port: 0 })).toEqual({
@@ -204,6 +226,22 @@ describe('real Loader composition', () => {
     const port = server.port
     expect(port).toBeGreaterThan(0)
 
+    const guardOrder: string[] = []
+    const disposeRequestGuard = server.registerRequestGuard((req, res) => {
+      guardOrder.push('first')
+      if (new URL(req.url ?? '/', 'http://x').pathname !== '/guarded') return true
+      res.writeHead(401)
+      res.end('DENIED')
+      return false
+    })
+    const disposeSecondRequestGuard = server.registerRequestGuard(() => {
+      guardOrder.push('second')
+      return true
+    })
+    expect(await request(port, '/guarded')).toMatchObject({ status: 401, body: 'DENIED' })
+    expect(guardOrder).toEqual(['first'])
+    guardOrder.length = 0
+
     // Routing precedence: exact beats prefix, longest prefix wins, a prefix
     // route answers its own path, and routes own their method handling
     // (POST reaches a registered prefix; 405 is fallback-only semantics).
@@ -215,6 +253,10 @@ describe('real Loader composition', () => {
     expect(await request(port, '/api/deep/leaf')).toMatchObject({ status: 200, body: 'DEEP' })
     expect(await request(port, '/api')).toMatchObject({ status: 200, body: 'API' })
     expect(await request(port, '/api/anything', { method: 'POST' })).toMatchObject({ status: 200, body: 'API' })
+    expect(guardOrder).toEqual([
+      'first', 'second', 'first', 'second', 'first',
+      'second', 'first', 'second', 'first', 'second',
+    ])
 
     // Fallback seat: 404 while unclaimed; the owner answers everything no
     // named route matches; index taps are the owner's to apply; the seat
@@ -250,6 +292,10 @@ describe('real Loader composition', () => {
     expect((await request(port, '/once')).body).toContain('shell') // back to the fallback owner
     expect(() => server.register({ kind: 'exact', path: '/once', handler: () => {} })).not.toThrow()
 
+    disposeSecondRequestGuard()
+    disposeRequestGuard()
+    expect((await request(port, '/guarded')).body).toContain('shell')
+
     // Releasing the seat restores the unclaimed 404 and registrability.
     releaseFallback()
     expect((await request(port, '/no/such/route')).status).toBe(404)
@@ -271,6 +317,19 @@ describe('real Loader composition', () => {
     const upgraded = await upgrade(port, '/events?stream=mux')
     disposeUpgrade()
     expect(() => server.registerUpgrade({ path: '/events', handler: () => {} })).not.toThrow()
+
+    const disposeUpgradeGuard = server.registerUpgradeGuard(req =>
+      new URL(req.url ?? '/', 'http://x').pathname !== '/guarded-upgrade')
+    server.registerUpgrade({
+      path: '/guarded-upgrade',
+      handler: (_req, socket) => {
+        socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
+      },
+    })
+    await rejectedUpgrade(port, '/guarded-upgrade')
+    disposeUpgradeGuard()
+    const admittedAfterDispose = await upgrade(port, '/guarded-upgrade')
+    admittedAfterDispose.destroy()
 
     // The webserver contains raw-socket errors even before an upgrade handler
     // has installed its protocol implementation.

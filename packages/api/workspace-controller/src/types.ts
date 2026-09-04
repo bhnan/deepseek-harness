@@ -103,18 +103,29 @@ export interface WorkspaceCreateRequest {
   readonly path: string
 }
 
+/** One browser-selected file to save under an existing Workspace. */
 export interface WorkspaceUploadRequest {
+  /** Workspace receiving the file. */
   readonly workspaceId: WorkspaceId
+  /** Basename supplied by the browser. */
   readonly name: string
+  /** Browser-declared media type, when available. */
   readonly mediaType?: string
+  /** Canonical base64-encoded file bytes. */
   readonly data: string
 }
 
+/** Stored projection returned after a browser file upload. */
 export interface WorkspaceUploadValue {
+  /** Workspace-relative stored path. */
   readonly path: string
+  /** Stored basename after collision resolution. */
   readonly name: string
+  /** Number of stored bytes. */
   readonly bytes: number
+  /** SHA-256 digest of the stored bytes. */
   readonly sha256: string
+  /** Browser-declared media type, when available. */
   readonly mediaType?: string
 }
 

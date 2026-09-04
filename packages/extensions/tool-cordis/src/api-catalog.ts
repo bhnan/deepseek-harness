@@ -2785,6 +2785,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the disposer removing the route.',
       },
       {
+        signature: 'registerRequestGuard(guard: WebRequestGuard): () => void',
+        description: 'Register an HTTP guard evaluated in registration order before route lookup.',
+        parameters: [{ name: 'guard', description: 'policy owner; `false` means the owner has consumed the response.' }],
+        returns: 'disposer withdrawing this guard.',
+      },
+      {
+        signature: 'registerUpgradeGuard(guard: WebUpgradeGuard): () => void',
+        description: 'Register an upgrade guard evaluated in registration order before route lookup.',
+        parameters: [{ name: 'guard', description: 'policy owner; `false` closes the candidate socket.' }],
+        returns: 'disposer withdrawing this guard.',
+      },
+      {
         signature: 'registerUpgrade(route: WebUpgradeRoute): () => void',
         description: 'Register an exact-path HTTP upgrade route. Duplicate paths throw because one socket can have only one protocol owner.',
         parameters: [{ name: 'route', description: 'pathname and handler owning negotiation plus socket use.' }],
@@ -2877,10 +2889,35 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the complete resulting archive set.',
       },
       {
+        signature: '@Remote(\'uploadFile\') async uploadFile(request: WorkspaceUploadRequest): Promise<WorkspaceUploadValue>',
+        description: 'Save one browser-selected file under the target Workspace\'s uploads directory.',
+        parameters: [{ name: 'request', description: 'Workspace identity plus the file name, media type, and base64 bytes.' }],
+        returns: 'the stored file projection.',
+      },
+      {
         signature: '@Remote({ mode: \'stream\' }) follow(signal: AbortSignal): AsyncIterable<WorkspaceFollowFrame>',
         description: 'Stream a complete Workspace baseline followed by ordered increments.',
         parameters: [{ name: 'signal', description: 'generation cancellation.' }],
         returns: 'baseline followed by ordered Workspace increments.',
+      },
+    ],
+  },
+  {
+    key: 'workspaceFilesController',
+    summary: 'Host service backing the generated `ctx.remote.workspaceFiles` namespace.',
+    description: 'Host service backing the generated `ctx.remote.workspaceFiles` namespace.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') async list(path: string, signal: AbortSignal): Promise<WorkspaceFileLevel>',
+        description: 'List one Host directory level for the workspace file tree.',
+        parameters: [{ name: 'path', description: 'fully qualified directory path.' }, { name: 'signal', description: 'caller lifetime; cancellation wins over local filesystem errors.' }],
+        returns: 'sorted direct directories and regular files.',
+      },
+      {
+        signature: '@Remote(\'read\') async read(path: string, signal: AbortSignal): Promise<WorkspaceFilePreview>',
+        description: 'Read a bounded text head from one regular Host file for in-app preview.',
+        parameters: [{ name: 'path', description: 'fully qualified file path.' }, { name: 'signal', description: 'caller lifetime; cancellation wins over local filesystem errors.' }],
+        returns: 'a bounded text preview.',
       },
     ],
   },
@@ -6186,6 +6223,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type WebhookSourceId = Branded<\'WebhookSourceId\'>;',
   },
   {
+    name: 'WebRequestGuard',
+    declaration: 'export type WebRequestGuard = (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>;',
+  },
+  {
     name: 'WebResultView',
     declaration: 'export type WebResultView = WebSearchResultView | WebFetchResultView;',
   },
@@ -6220,6 +6261,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WebSource',
     declaration: 'export interface WebSource {\n    url: string;\n    title?: string;\n    snippet?: string;\n    publishedAt?: string;\n}',
+  },
+  {
+    name: 'WebUpgradeGuard',
+    declaration: 'export type WebUpgradeGuard = (req: IncomingMessage) => boolean | Promise<boolean>;',
   },
   {
     name: 'WebUpgradeRoute',
@@ -6306,6 +6351,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkspaceDeleteValue {\n    readonly deleted: true;\n}',
   },
   {
+    name: 'WorkspaceFileEntry',
+    declaration: 'export interface WorkspaceFileEntry {\n    readonly name: string;\n    readonly path: string;\n    readonly hidden: boolean;\n}',
+  },
+  {
+    name: 'WorkspaceFileLevel',
+    declaration: 'export interface WorkspaceFileLevel {\n    readonly dirs: readonly WorkspaceFileEntry[];\n    readonly files: readonly WorkspaceFileEntry[];\n    readonly dirsTruncated: boolean;\n    readonly filesTruncated: boolean;\n}',
+  },
+  {
+    name: 'WorkspaceFilePreview',
+    declaration: 'export type WorkspaceFilePreview = {\n    readonly path: string;\n    readonly size: number;\n    readonly kind: \'text\';\n    readonly content: string;\n    readonly truncated: boolean;\n} | {\n    readonly path: string;\n    readonly size: number;\n    readonly kind: \'image\';\n    readonly content: string;\n    readonly mime: string;\n    readonly truncated: false;\n} | {\n    readonly path: string;\n    readonly size: number;\n    readonly kind: \'binary\';\n    readonly truncated: false;\n};',
+  },
+  {
     name: 'WorkspaceFollowFrame',
     declaration: 'export type WorkspaceFollowFrame = {\n    readonly type: \'baseline\';\n    readonly value: WorkspaceBaseline;\n} | WorkspaceFollowIncrement;',
   },
@@ -6328,6 +6385,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceRenameRequest',
     declaration: 'export interface WorkspaceRenameRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n}',
+  },
+  {
+    name: 'WorkspaceUploadRequest',
+    declaration: 'export interface WorkspaceUploadRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly name: string;\n    readonly mediaType?: string;\n    readonly data: string;\n}',
+  },
+  {
+    name: 'WorkspaceUploadValue',
+    declaration: 'export interface WorkspaceUploadValue {\n    readonly path: string;\n    readonly name: string;\n    readonly bytes: number;\n    readonly sha256: string;\n    readonly mediaType?: string;\n}',
   },
   {
     name: 'WorkspaceValue',

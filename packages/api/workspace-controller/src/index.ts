@@ -1,7 +1,7 @@
 /** Host Workspace Remote owner: explicit commands and reconnect-safe state. */
 
 import { Context } from '@deepseek-ai/cordis'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { WorkspaceCommands } from './commands.ts'
 import { DirectoryPickerController } from './directory-picker.ts'
 import { WorkspaceFeed } from './feed.ts'
@@ -26,6 +26,7 @@ import type {
 
 export type * from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
+export { WorkspaceFilesController } from './workspace-files.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -114,6 +115,11 @@ export class WorkspaceController extends TypertRemoteService {
     return this.commands.archiveSession(request)
   }
 
+  /**
+   * Save one browser-selected file under the target Workspace's uploads directory.
+   * @param request - Workspace identity plus the file name, media type, and base64 bytes.
+   * @returns the stored file projection.
+   */
   @Remote('uploadFile')
   async uploadFile(request: WorkspaceUploadRequest): Promise<WorkspaceUploadValue> {
     const workspace = this.ctx.workspaceRegistry.get(request.workspaceId)

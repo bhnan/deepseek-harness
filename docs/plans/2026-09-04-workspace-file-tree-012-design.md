@@ -1,5 +1,7 @@
 # Workspace file tree and preview — 0.1.2 design
 
+English | [中文](2026-09-04-workspace-file-tree-012-design.zh.md)
+
 ## Outcome
 
 The Web GUI gains a read-only file tree below the workspace/session browser and a bounded in-app preview for the active Session's Workspace. A file can still be handed to the host operating system's default application.

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Browsers reach the web GUI over HTTP through `dsh-host-webserver`: a `node:http` server where other plugins register named routes, upgrade routes, index startup inputs, and one fallback handler. It knows no harness concepts and serves no files — the `/api` bridge, plugin bundles, the HMR event stream, and the SPA dist belong to the plugins that register them. Route matching is fixed: exact over the whole table, then longest prefix, then the fallback handler. It serves browsers only; Electron loads dist over `file://` and carries fetch over an IPC bridge.
+Browsers reach the web GUI over HTTP through `dsh-host-webserver`: a `node:http` server where other plugins register request and upgrade guards, named routes, index startup inputs, and one fallback handler. It knows no harness concepts and serves no files — the `/api` bridge, plugin bundles, the HMR event stream, and the SPA dist belong to the plugins that register them. Route matching is fixed: exact over the whole table, then longest prefix, then the fallback handler. It serves browsers only; Electron loads dist over `file://` and carries fetch over an IPC bridge.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Browsers reach the web GUI over HTTP through `dsh-host-webserver`: a `node:http`
 <a id="use-this-package"></a>
 ## Use this package
 
-Compose the webserver as the HTTP transport of a browser-facing host, then let the feature plugins claim their routes. Activation listens immediately; registration order carries no request-facing semantics because named routes compose to be disjoint.
+Compose the webserver as the HTTP transport of a browser-facing host, then let the feature plugins contribute policy and claim routes. Activation listens immediately; named-route registration order carries no matching semantics because named routes compose to be disjoint, while request guards intentionally run in their registration order.
 
 ### Minimal configuration
 
@@ -44,6 +44,12 @@ Set `compression: 'gzip'` to wrap eligible socket-backed responses without chang
 
 `register(route)` adds a named `exact` or `prefix` HTTP route, `registerUpgrade(route)` adds an upgrade route for an exact pathname, and both return a disposer that removes the registration. A duplicate path within either table throws — route patterns are a composition-level contract, so a collision is a misconfiguration. HTTP matching is exact over the whole table, then longest prefix, then the fallback handler; upgrades match exactly and unmatched connections are closed.
 
+### Global request policy
+
+`registerRequestGuard(guard)` runs every HTTP guard in registration order before named-route lookup. Return `true` to continue; return `false` only after the guard has completed the response it owns. `registerUpgradeGuard(guard)` runs before upgrade-route lookup; `false` makes the server close the candidate socket without dispatching an upgrade handler.
+
+Guards are opt-in composition policy, not built-in authentication. Register them through a Cordis effect and dispose them with their owner. This lets an authentication plugin cover static fallback responses and WebSocket upgrades without replacing the Node server listener.
+
 ### The fallback seat
 
 `registerFallback(handler)` claims the one handler for every request no named route matches. A second registration throws; while no fallback is registered the server answers 404. In the shipped Web composition the [SPA dist server](../frontend-static/README.md) owns the seat and calls `renderIndex` on every index response it renders.
@@ -52,7 +58,7 @@ Index startup inputs are two layers. `collectIndexInjections()` gathers a fresh 
 
 ### Behavior under failure
 
-A listen failure (for example EADDRINUSE) rejects plugin initialization with the bind diagnostic. An HTTP request whose handler throws is answered 400 — or the socket destroyed when headers are already out — and logged as a warning; it never exits the process. An upgrade-handler exception or upgraded-socket transport error logs a warning and destroys its socket.
+A listen failure (for example EADDRINUSE) rejects plugin initialization with the bind diagnostic. An HTTP request or request guard that throws is answered 400 — or the socket destroyed when headers are already out — and logged as a warning; it never exits the process. An upgrade guard or handler exception, or an upgraded-socket transport error, logs a warning and destroys its socket.
 
 -----
 
@@ -64,7 +70,7 @@ A listen failure (for example EADDRINUSE) rejects plugin initialization with the
 
 ### Design concept
 
-The package is a plain route registry with no harness vocabulary: `WebServer` extends Cordis `Service` and holds three route tables plus the fallback slot, the raw index-tap list, and the `webserver/index-inject` event the index renderer gathers rows through. Index rendering composes two layers per response: `renderIndex` renders the fresh injection table, including advisory `script-preload` rows, into the body, then applies the raw taps in registration order; `applyIndexTaps` runs the taps alone. The upgrade handler owns the protocol handshake and connection contents; the webserver only delivers the raw socket and request. `host` and `port` getters expose composition-time facts other plugins adapt to (for example the directory-picker chooser).
+The package is a plain route and policy registry with no harness vocabulary: `WebServer` extends Cordis `Service` and holds HTTP and upgrade guard sets, three route tables plus the fallback slot, the raw index-tap list, and the `webserver/index-inject` event the index renderer gathers rows through. Index rendering composes two layers per response: `renderIndex` renders the fresh injection table, including advisory `script-preload` rows, into the body, then applies the raw taps in registration order; `applyIndexTaps` runs the taps alone. The upgrade handler owns the protocol handshake and connection contents; the webserver only delivers the raw socket and request. `host` and `port` getters expose composition-time facts other plugins adapt to (for example the directory-picker chooser).
 
 ### Matching and lifecycle
 
@@ -74,7 +80,7 @@ The package is a plain route registry with no harness vocabulary: `WebServer` ex
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `WebServer` service: route tables, fallback seat, index rendering, matching, lifecycle |
+| [`src/index.ts`](src/index.ts) | `WebServer` service: guards, route tables, fallback seat, index rendering, matching, lifecycle |
 | — | No runtime invariant companion is published; route registration and disposal mutate one route table through the same service, so a register/dispose probe only re-executes the implementation. Real routing and HMR tests own the behavior. |
 | [`src/injections.ts`](src/injections.ts) | Structured `IndexInjection` rows and `renderIndexInjections` row rendering |
 
@@ -90,6 +96,7 @@ Read these when the server contract is not enough: the subsystem reference, then
 - [HTTP server subsystem](../../../docs/subsystems/web-server.md) — routes, matching order, and the config the server accepts.
 - [SPA dist server](../frontend-static/README.md) — the shipped owner of the fallback seat.
 - [Web config-tree boot and transport layering](../../../.agents/notes/implemented/architecture/2026-07-24-web-config-tree-boot-and-transport-layering.md) — why feature plugins own every route.
+- [WebServer global request guards](../../../.agents/notes/implemented/architecture/2026-09-04-webserver-global-request-guards.md) — why whole-server policy registers through the service rather than replacing Node listeners.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-host-webserver) — every accepted config field and its source declaration.
 
 -----
@@ -110,7 +117,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define where the server is intentionally minimal. They are current package constraints, not a task backlog.
 
-- **No server-wide TLS, authentication, or origin policy** — route owners such as `dsh-client-connection` enforce their own request policy. Binding a non-loopback address still exposes unprotected routes and static assets to that network.
+- **No built-in TLS, authentication, or origin policy** — composition can add guards, but `WebServer` does not choose or configure them. Binding a non-loopback address still exposes unprotected routes and static assets to that network.
 - **Socket options are fixed** — config selects the bind host and port, while backlog and other socket settings remain internal until a deployment needs them.
 
 <a id="dev-note"></a>

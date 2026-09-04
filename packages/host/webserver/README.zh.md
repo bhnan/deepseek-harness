@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-浏览器经由 `dsh-host-webserver` 通过 HTTP 访问 web GUI：一个 `node:http` 服务器，其他插件在其中注册具名路由、upgrade 路由、index 启动输入与一个回退 handler。它不了解任何 harness 概念，也不提供任何文件服务——`/api` 桥接、插件 bundle、HMR（热模块替换）事件流与 SPA dist 都属于注册它们的插件。路由匹配顺序固定不变：先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler。它只服务浏览器；Electron 通过 `file://` 加载 dist，并经 IPC 桥接承载 fetch。
+浏览器经由 `dsh-host-webserver` 通过 HTTP 访问 web GUI：一个 `node:http` 服务器，其他插件在其中注册请求与 upgrade guard、具名路由、index 启动输入与一个回退 handler。它不了解任何 harness 概念，也不提供任何文件服务——`/api` 桥接、插件 bundle、HMR（热模块替换）事件流与 SPA dist 都属于注册它们的插件。路由匹配顺序固定不变：先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler。它只服务浏览器；Electron 通过 `file://` 加载 dist，并经 IPC 桥接承载 fetch。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-把 webserver 组合为面向浏览器宿主的 HTTP 传输，然后让功能插件认领各自的路由。激活即开始监听；注册顺序不影响请求处理，因为具名路由组合起来互不相交。
+把 webserver 组合为面向浏览器宿主的 HTTP 传输，然后让功能插件贡献策略并认领各自的路由。激活即开始监听；具名路由的注册顺序不影响匹配，因为它们组合起来互不相交；请求 guard 则有意按注册顺序运行。
 
 ### 最小配置
 
@@ -44,6 +44,12 @@ kind: "package-reference"
 
 `register(route)` 添加具名的 `exact`／`prefix` HTTP route，`registerUpgrade(route)` 为精确 pathname 添加 upgrade route，两者返回的 disposer 都会移除注册。同一张表内的重复路径会抛错——route 模式是组合层约定，冲突即配置错误。HTTP 匹配先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler；upgrade 只做精确匹配，未命中连接直接关闭。
 
+### 全局请求策略
+
+`registerRequestGuard(guard)` 在具名 route 查找前按注册顺序运行每个 HTTP guard。返回 `true` 时继续；只有 guard 已完成其拥有的响应时才返回 `false`。`registerUpgradeGuard(guard)` 在 upgrade route 查找前运行；返回 `false` 时服务器关闭候选 socket，不分发 upgrade handler。
+
+guard 是可选的组合策略，不是内置认证。通过 Cordis effect 注册它们，并随所属 owner 一起 dispose。这样认证插件无需替换 Node server listener，就能覆盖静态回退响应与 WebSocket upgrade。
+
 ### 回退席位
 
 `registerFallback(handler)` 认领所有未被具名 route 命中的请求的唯一个 handler。第二次注册会抛错；没有注册回退时服务器回答 404。在随附的 Web 组合中，[SPA dist 服务器](../frontend-static/README.zh.md)拥有该席位，并对其渲染的每个 index 响应调用 `renderIndex`。
@@ -52,7 +58,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 
 ### 失败时的行为
 
-监听失败（例如 EADDRINUSE）会以绑定诊断信息拒绝插件初始化。handler 抛错的 HTTP 请求会得到 400——若响应头已经发出则销毁 socket——并记录 warning；它绝不会退出进程。upgrade handler 抛错或升级 socket 出现传输错误时，会记录 warning 并销毁对应 socket。
+监听失败（例如 EADDRINUSE）会以绑定诊断信息拒绝插件初始化。HTTP 请求或请求 guard 抛错时会得到 400——若响应头已经发出则销毁 socket——并记录 warning；它绝不会退出进程。upgrade guard 或 handler 抛错，或升级 socket 出现传输错误时，会记录 warning 并销毁对应 socket。
 
 -----
 
@@ -64,7 +70,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 
 ### 设计理念
 
-本包是一个不带任何 harness 词汇的普通路由注册表：`WebServer` 继承 Cordis `Service`，持有三张路由表、回退槽位、原始 index 转换列表，以及 index 渲染器经其收集行的 `webserver/index-inject` 事件。index 渲染每次响应组合两层：`renderIndex` 先把包含提示性 `script-preload` 行的全新注入表渲染进正文，再按注册顺序应用原始转换；`applyIndexTaps` 只运行转换。upgrade handler 拥有协议握手与连接内容；webserver 只交付原始 socket 与 request。`host` 与 `port` getter 暴露其他插件据以自适应的组合期事实（例如 directory-picker 选择器）。
+本包是一个不带任何 harness 词汇的普通路由与策略注册表：`WebServer` 继承 Cordis `Service`，持有 HTTP 与 upgrade guard 集合、三张路由表、回退槽位、原始 index 转换列表，以及 index 渲染器经其收集行的 `webserver/index-inject` 事件。index 渲染每次响应组合两层：`renderIndex` 先把包含提示性 `script-preload` 行的全新注入表渲染进正文，再按注册顺序应用原始转换；`applyIndexTaps` 只运行转换。upgrade handler 拥有协议握手与连接内容；webserver 只交付原始 socket 与 request。`host` 与 `port` getter 暴露其他插件据以自适应的组合期事实（例如 directory-picker 选择器）。
 
 ### 匹配与生命周期
 
@@ -74,7 +80,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `WebServer` 服务：路由表、回退席位、index 渲染、匹配、生命周期 |
+| [`src/index.ts`](src/index.ts) | `WebServer` 服务：guard、路由表、回退席位、index 渲染、匹配、生命周期 |
 | — | 不发布运行时不变式伴生入口；路由注册与释放通过同一服务修改同一张路由表，register/dispose 探针只会重复执行实现。真实路由与 HMR 测试负责该行为。 |
 | [`src/injections.ts`](src/injections.ts) | 结构化 `IndexInjection` 行与 `renderIndexInjections` 行渲染 |
 
@@ -90,6 +96,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 - [HTTP 服务器子系统](../../../docs/subsystems/web-server.zh.md)——路由、匹配顺序与服务器接受的配置。
 - [SPA dist 服务器](../frontend-static/README.zh.md)——回退席位的随附持有者。
 - [Web 配置树启动与传输分层](../../../.agents/notes/implemented/architecture/2026-07-24-web-config-tree-boot-and-transport-layering.zh.md)——功能插件为何拥有每条路由。
+- [WebServer 全局请求 guard](../../../.agents/notes/implemented/architecture/2026-09-04-webserver-global-request-guards.zh.md)——全服务器策略为何通过服务注册而不替换 Node listener。
 - [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-host-webserver)——每个受支持配置字段及其源声明。
 
 -----
@@ -110,7 +117,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 
 这些限制说明服务器在何处有意保持最小。它们是当前包约束，不是任务积压。
 
-- **不提供服务器级 TLS、认证或来源策略**：`dsh-client-connection` 等 route owner 会实施自己的请求策略。绑定非回环地址仍会向该网络公开未受保护的 route 与静态资源。
+- **不提供内置 TLS、认证或来源策略**：组合可以添加 guard，但 `WebServer` 不选择也不配置它们。绑定非回环地址仍会向该网络公开未受保护的 route 与静态资源。
 - **Socket 选项固定不变**：配置只选择绑定宿主与端口；在具体部署产生需求前，backlog 和其他 socket 设置仍保持内部实现。
 
 <a id="dev-note"></a>

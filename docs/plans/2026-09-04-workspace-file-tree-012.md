@@ -1,5 +1,7 @@
 # Workspace File Tree and Preview Implementation Plan
 
+English | [中文](2026-09-04-workspace-file-tree-012.zh.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add an authenticated, bounded workspace file tree and in-app preview to the 0.1.2 Web sidebar.
@@ -282,7 +284,7 @@ Expected: PASS. If a browser snapshot changes, inspect it before accepting it.
 Run:
 
 ```text
-git add packages/bundle/web-app .agents/notes packages/api/workspace-controller/README* packages/api/remotes/README* docs
+git add packages/bundle/web-app .agents/notes packages/api/workspace-controller/README.md packages/api/remotes/README.md docs
 git commit -m "feat: compose workspace file tree in web app"
 ```
 

@@ -1743,6 +1743,16 @@
     },
     {
       "doc": "docs/subsystems/web-server.md",
+      "symbol": "WebRequestGuard",
+      "source": "packages/host/webserver/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/web-server.md",
+      "symbol": "WebUpgradeGuard",
+      "source": "packages/host/webserver/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/web-server.md",
       "symbol": "Config",
       "source": "packages/host/webserver/src/index.ts"
     },
@@ -1785,6 +1795,31 @@
       "doc": "docs/subsystems/workspace.md",
       "symbol": "Workspace",
       "source": "packages/workspace/workspace/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceFileEntry",
+      "source": "packages/api/workspace-controller/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceFileLevel",
+      "source": "packages/api/workspace-controller/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceFilePreview",
+      "source": "packages/api/workspace-controller/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceUploadRequest",
+      "source": "packages/api/workspace-controller/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceUploadValue",
+      "source": "packages/api/workspace-controller/src/types.ts"
     },
     {
       "doc": "docs/subsystems/client-modules.md",

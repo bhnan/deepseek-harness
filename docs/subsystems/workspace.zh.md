@@ -125,6 +125,98 @@ interface Workspace {
 
 [`dsh-workspace-controller`](../../packages/api/workspace-controller) 经 `ctx.workspaceRegistry` 向 GUI 客户端提供工作区 CRUD，[`dsh-session-controller`](../../packages/api/session-controller) 执行上文「先建会话再 attach」的流程。[dsh-agent-instructions](../../packages/context/agent-instructions) 尽管名字如此，却**不是**消费方：它在 agent 自己的 cwd 下发现 AGENTS.md 风格的指令文件，从不触碰 `ctx.workspaceRegistry`——两者共用的这个词指的是用户的工作目录，而非本注册表的实体。
 
+<a id="workspace-file-tree"></a>
+
+## 工作区文件树
+
+`dsh-workspace-controller` 还拥有已鉴权的 `ctx.remote.workspaceFiles` namespace。它一次列出一个有上限的目录层级，并且只为常规文件返回有上限的预览。文件和目录行都携带 Host 限定路径，因此浏览器客户端绝不根据显示名称拼接路径；不可读路径、非常规文件和被取消的调用仍分别表现为 Host 侧的 `workspace-files/unreadable` 或网关取消失败。
+
+```ts type-equiv
+/** One direct child returned by the authenticated workspace-files Remote. */
+interface WorkspaceFileEntry {
+  /** Base name displayed in one tree row. */
+  readonly name: string
+  /** Fully qualified Host path; Clients never concatenate path segments. */
+  readonly path: string
+  /** POSIX dot-file convention as observed by the Host. */
+  readonly hidden: boolean
+}
+```
+
+```ts type-equiv
+/** One bounded, sorted directory level for the workspace file tree. */
+interface WorkspaceFileLevel {
+  /** Direct child directories, including enterable directory symlinks. */
+  readonly dirs: readonly WorkspaceFileEntry[]
+  /** Direct child regular files; file symlinks are excluded. */
+  readonly files: readonly WorkspaceFileEntry[]
+  /** Whether the Host cut the directory window. */
+  readonly dirsTruncated: boolean
+  /** Whether the Host cut the regular-file window. */
+  readonly filesTruncated: boolean
+}
+```
+
+```ts type-equiv
+/** One server-bounded preview of a regular Host file. */
+type WorkspaceFilePreview =
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'text'
+    readonly content: string
+    readonly truncated: boolean
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'image'
+    readonly content: string
+    readonly mime: string
+    readonly truncated: false
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'binary'
+    readonly truncated: false
+  }
+```
+
+## 文件上传
+
+`dsh-workspace-controller` 只为已有 Workspace 接收浏览器选取的文件，并把其解码后的字节存储到该 Workspace 的 `uploads/` 目录下。Host 校验规范 base64 和固定字节上限，以不覆盖不同内容的方式解析重名，并返回工作区相对路径及已存储字节的摘要。
+
+```ts type-equiv
+/** One browser-selected file to save under an existing Workspace. */
+interface WorkspaceUploadRequest {
+  /** Workspace receiving the file. */
+  readonly workspaceId: WorkspaceId
+  /** Basename supplied by the browser. */
+  readonly name: string
+  /** Browser-declared media type, when available. */
+  readonly mediaType?: string
+  /** Canonical base64-encoded file bytes. */
+  readonly data: string
+}
+```
+
+```ts type-equiv
+/** Stored projection returned after a browser file upload. */
+interface WorkspaceUploadValue {
+  /** Workspace-relative stored path. */
+  readonly path: string
+  /** Stored basename after collision resolution. */
+  readonly name: string
+  /** Number of stored bytes. */
+  readonly bytes: number
+  /** SHA-256 digest of the stored bytes. */
+  readonly sha256: string
+  /** Browser-declared media type, when available. */
+  readonly mediaType?: string
+}
+```
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -233,6 +325,13 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 @Remote('archiveSession') archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue>
 
 /**
+ * Save one browser-selected file under the target Workspace's uploads directory.
+ * @param request - Workspace identity plus the file name, media type, and base64 bytes.
+ * @returns the stored file projection.
+ */
+@Remote('uploadFile') async uploadFile(request: WorkspaceUploadRequest): Promise<WorkspaceUploadValue>
+
+/**
  * Stream a complete Workspace baseline followed by ordered increments.
  * @param signal - generation cancellation.
  * @returns baseline followed by ordered Workspace increments.
@@ -241,6 +340,32 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 ```
 
 Source: [`packages/api/workspace-controller/src/index.ts`](../../packages/api/workspace-controller/src/index.ts)
+
+<a id="ctxworkspacefilescontroller--workspacefilescontroller"></a>
+
+### `ctx.workspaceFilesController` — `WorkspaceFilesController`
+
+Host service backing the generated `ctx.remote.workspaceFiles` namespace.
+
+```ts cordis-catalog
+/**
+ * List one Host directory level for the workspace file tree.
+ * @param path - fully qualified directory path.
+ * @param signal - caller lifetime; cancellation wins over local filesystem errors.
+ * @returns sorted direct directories and regular files.
+ */
+@Remote('list') async list(path: string, signal: AbortSignal): Promise<WorkspaceFileLevel>
+
+/**
+ * Read a bounded text head from one regular Host file for in-app preview.
+ * @param path - fully qualified file path.
+ * @param signal - caller lifetime; cancellation wins over local filesystem errors.
+ * @returns a bounded text preview.
+ */
+@Remote('read') async read(path: string, signal: AbortSignal): Promise<WorkspaceFilePreview>
+```
+
+Source: [`packages/api/workspace-controller/src/workspace-files.ts`](../../packages/api/workspace-controller/src/workspace-files.ts)
 
 <a id="ctxworkspaceregistry--workspaceregistry"></a>
 

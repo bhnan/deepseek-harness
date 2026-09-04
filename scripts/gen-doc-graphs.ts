@@ -200,6 +200,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns Workspace commands and reconnect-safe Workspace state delivery through the generated Remote namespace.',
   },
   {
+    key: 'workspaceFilesController',
+    pkg: 'api-workspace-controller',
+    title: 'Host Workspace file-tree Remote controller',
+    mode: 'core',
+    consumers: ['client-ui-file-tree'],
+    note: 'Owns bounded, read-only Host directory listing and regular-file preview delivery through the generated workspaceFiles Remote namespace.',
+  },
+  {
     key: 'directoryPickerController',
     pkg: 'api-workspace-controller',
     title: 'Host directory-picking Remote controller',

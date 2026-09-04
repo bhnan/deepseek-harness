@@ -115,6 +115,10 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
     return this.onArchiveSession(request)
   }
 
+  uploadFile(..._args: Parameters<WorkspaceRemote['uploadFile']>): ReturnType<WorkspaceRemote['uploadFile']> {
+    throw new Error('unused')
+  }
+
   async *follow(_signal?: AbortSignal): AsyncGenerator<WorkspaceFollowFrame> {}
 
   private record(method: string, request: unknown): void {

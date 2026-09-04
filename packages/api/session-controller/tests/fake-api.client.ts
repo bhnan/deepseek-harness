@@ -273,6 +273,9 @@ export class FakeApiClient {
           payload,
           this.onWorkspaceArchiveSession(payload),
         ),
+        uploadFile: payload => this.record('workspace.uploadFile', payload, Promise.resolve(ok({
+          path: 'uploads/file', name: 'file', bytes: 0, sha256: '0'.repeat(64),
+        }))),
         follow: signal => this.openWorkspace(signal),
       },
     }

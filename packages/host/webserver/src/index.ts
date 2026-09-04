@@ -47,6 +47,21 @@ export interface WebRoute {
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
 }
 
+/**
+ * Guard every HTTP request before named-route lookup.
+ * @param req - incoming HTTP request.
+ * @param res - response the guard owns when it returns `false`.
+ * @returns `true` to continue lookup, or `false` after completing the response.
+ */
+export type WebRequestGuard = (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>
+
+/**
+ * Guard every HTTP upgrade before upgrade-route lookup.
+ * @param req - incoming upgrade request.
+ * @returns `true` to continue lookup, or `false` to make WebServer close the socket.
+ */
+export type WebUpgradeGuard = (req: IncomingMessage) => boolean | Promise<boolean>
+
 /** One exact-path HTTP upgrade registration. */
 export interface WebUpgradeRoute {
   /** Absolute pathname, no trailing slash. */
@@ -133,6 +148,8 @@ export class WebServer extends Service {
   private readonly exact = new Map<string, WebRoute>()
   private readonly prefixes = new Map<string, WebRoute>()
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
+  private readonly requestGuards = new Set<WebRequestGuard>()
+  private readonly upgradeGuards = new Set<WebUpgradeGuard>()
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
   private fallback: WebRoute['handler'] | undefined
@@ -169,6 +186,26 @@ export class WebServer extends Service {
     }
     table.set(route.path, route)
     return () => { table.delete(route.path) }
+  }
+
+  /**
+   * Register an HTTP guard evaluated in registration order before route lookup.
+   * @param guard - policy owner; `false` means the owner has consumed the response.
+   * @returns disposer withdrawing this guard.
+   */
+  registerRequestGuard(guard: WebRequestGuard): () => void {
+    this.requestGuards.add(guard)
+    return () => { this.requestGuards.delete(guard) }
+  }
+
+  /**
+   * Register an upgrade guard evaluated in registration order before route lookup.
+   * @param guard - policy owner; `false` closes the candidate socket.
+   * @returns disposer withdrawing this guard.
+   */
+  registerUpgradeGuard(guard: WebUpgradeGuard): () => void {
+    this.upgradeGuards.add(guard)
+    return () => { this.upgradeGuards.delete(guard) }
   }
 
   /**
@@ -219,6 +256,7 @@ export class WebServer extends Service {
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      if (!await this.allowRequest(req, res)) return
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
@@ -264,29 +302,30 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
-      let route: WebUpgradeRoute | undefined
-      try {
-        /* v8 ignore next -- node:http always sets url on server requests. */
-        route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
-      } catch (error) {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
-        socket.destroy()
-        return
-      }
-      if (route === undefined) {
-        socket.destroy()
-        return
-      }
-      this.upgradedSockets.add(socket)
-      try {
-        Promise.resolve(route.handler(req, socket, head)).catch((error: unknown) => {
+      void (async () => {
+        let route: WebUpgradeRoute | undefined
+        try {
+          if (!await this.allowUpgrade(req)) {
+            socket.destroy()
+            return
+          }
+          /* v8 ignore next -- node:http always sets url on server requests. */
+          route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
+        } catch (error) {
           this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
           socket.destroy()
-        })
-      } catch (error) {
+          return
+        }
+        if (route === undefined) {
+          socket.destroy()
+          return
+        }
+        this.upgradedSockets.add(socket)
+        await route.handler(req, socket, head)
+      })().catch((error: unknown) => {
         this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
         socket.destroy()
-      }
+      })
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -324,6 +363,20 @@ export class WebServer extends Service {
       if (best === undefined || prefix.length > best.path.length) best = route
     }
     return best
+  }
+
+  private async allowRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    for (const guard of this.requestGuards) {
+      if (!await guard(req, res)) return false
+    }
+    return true
+  }
+
+  private async allowUpgrade(req: IncomingMessage): Promise<boolean> {
+    for (const guard of this.upgradeGuards) {
+      if (!await guard(req)) return false
+    }
+    return true
   }
 
   /**

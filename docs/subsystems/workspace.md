@@ -125,6 +125,98 @@ Sessions get their cwd at create time from whoever creates them, not from this r
 
 [`dsh-workspace-controller`](../../packages/api/workspace-controller) serves workspace CRUD to GUI clients over `ctx.workspaceRegistry`, and [`dsh-session-controller`](../../packages/api/session-controller) performs the create-session-then-attach flow above. [dsh-agent-instructions](../../packages/context/agent-instructions) is **not** a consumer despite the name: it discovers AGENTS.md-style instruction files under an agent's own cwd and never touches `ctx.workspaceRegistry` — the shared word refers to the user's working directory, not to this registry's entities.
 
+<a id="workspace-file-tree"></a>
+
+## Workspace file tree
+
+`dsh-workspace-controller` also owns the authenticated `ctx.remote.workspaceFiles` namespace. It lists one bounded directory level at a time and returns a bounded preview only for a regular file. File and directory rows carry Host-qualified paths so browser clients never construct paths from displayed names; unreadable paths, non-regular files, and cancelled calls remain Host-side `workspace-files/unreadable` or gateway-cancellation failures.
+
+```ts type-equiv
+/** One direct child returned by the authenticated workspace-files Remote. */
+interface WorkspaceFileEntry {
+  /** Base name displayed in one tree row. */
+  readonly name: string
+  /** Fully qualified Host path; Clients never concatenate path segments. */
+  readonly path: string
+  /** POSIX dot-file convention as observed by the Host. */
+  readonly hidden: boolean
+}
+```
+
+```ts type-equiv
+/** One bounded, sorted directory level for the workspace file tree. */
+interface WorkspaceFileLevel {
+  /** Direct child directories, including enterable directory symlinks. */
+  readonly dirs: readonly WorkspaceFileEntry[]
+  /** Direct child regular files; file symlinks are excluded. */
+  readonly files: readonly WorkspaceFileEntry[]
+  /** Whether the Host cut the directory window. */
+  readonly dirsTruncated: boolean
+  /** Whether the Host cut the regular-file window. */
+  readonly filesTruncated: boolean
+}
+```
+
+```ts type-equiv
+/** One server-bounded preview of a regular Host file. */
+type WorkspaceFilePreview =
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'text'
+    readonly content: string
+    readonly truncated: boolean
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'image'
+    readonly content: string
+    readonly mime: string
+    readonly truncated: false
+  }
+  | {
+    readonly path: string
+    readonly size: number
+    readonly kind: 'binary'
+    readonly truncated: false
+  }
+```
+
+## File uploads
+
+`dsh-workspace-controller` accepts a browser-selected file only for an existing Workspace and stores its decoded bytes below that Workspace's `uploads/` directory. The Host validates canonical base64 and a fixed byte bound, resolves duplicate names without overwriting different content, and returns a workspace-relative path plus the stored-byte digest.
+
+```ts type-equiv
+/** One browser-selected file to save under an existing Workspace. */
+interface WorkspaceUploadRequest {
+  /** Workspace receiving the file. */
+  readonly workspaceId: WorkspaceId
+  /** Basename supplied by the browser. */
+  readonly name: string
+  /** Browser-declared media type, when available. */
+  readonly mediaType?: string
+  /** Canonical base64-encoded file bytes. */
+  readonly data: string
+}
+```
+
+```ts type-equiv
+/** Stored projection returned after a browser file upload. */
+interface WorkspaceUploadValue {
+  /** Workspace-relative stored path. */
+  readonly path: string
+  /** Stored basename after collision resolution. */
+  readonly name: string
+  /** Number of stored bytes. */
+  readonly bytes: number
+  /** SHA-256 digest of the stored bytes. */
+  readonly sha256: string
+  /** Browser-declared media type, when available. */
+  readonly mediaType?: string
+}
+```
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -233,6 +325,13 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 @Remote('archiveSession') archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue>
 
 /**
+ * Save one browser-selected file under the target Workspace's uploads directory.
+ * @param request - Workspace identity plus the file name, media type, and base64 bytes.
+ * @returns the stored file projection.
+ */
+@Remote('uploadFile') async uploadFile(request: WorkspaceUploadRequest): Promise<WorkspaceUploadValue>
+
+/**
  * Stream a complete Workspace baseline followed by ordered increments.
  * @param signal - generation cancellation.
  * @returns baseline followed by ordered Workspace increments.
@@ -241,6 +340,32 @@ Host service backing the generated `ctx.remote.workspace` namespace.
 ```
 
 Source: [`packages/api/workspace-controller/src/index.ts`](../../packages/api/workspace-controller/src/index.ts)
+
+<a id="ctxworkspacefilescontroller--workspacefilescontroller"></a>
+
+### `ctx.workspaceFilesController` — `WorkspaceFilesController`
+
+Host service backing the generated `ctx.remote.workspaceFiles` namespace.
+
+```ts cordis-catalog
+/**
+ * List one Host directory level for the workspace file tree.
+ * @param path - fully qualified directory path.
+ * @param signal - caller lifetime; cancellation wins over local filesystem errors.
+ * @returns sorted direct directories and regular files.
+ */
+@Remote('list') async list(path: string, signal: AbortSignal): Promise<WorkspaceFileLevel>
+
+/**
+ * Read a bounded text head from one regular Host file for in-app preview.
+ * @param path - fully qualified file path.
+ * @param signal - caller lifetime; cancellation wins over local filesystem errors.
+ * @returns a bounded text preview.
+ */
+@Remote('read') async read(path: string, signal: AbortSignal): Promise<WorkspaceFilePreview>
+```
+
+Source: [`packages/api/workspace-controller/src/workspace-files.ts`](../../packages/api/workspace-controller/src/workspace-files.ts)
 
 <a id="ctxworkspaceregistry--workspaceregistry"></a>
 
