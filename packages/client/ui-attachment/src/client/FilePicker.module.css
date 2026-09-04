@@ -1,0 +1,19 @@
+.trigger {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.trigger:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.trigger:disabled { cursor: default; opacity: .45; }
+.icon { font-size: 18px; line-height: 1; }

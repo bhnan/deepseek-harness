@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import css from './FilePicker.module.css'
 
 export interface FilePickerProps {
   disabled?: boolean
@@ -10,7 +11,16 @@ export interface FilePickerProps {
 export function FilePicker({ disabled = false, onFiles, label = '选择文件' }: FilePickerProps) {
   const input = useRef<HTMLInputElement>(null)
   return <>
-    <button type="button" disabled={disabled} onClick={() => input.current?.click()}>{label}</button>
+    <button
+      type="button"
+      className={css.trigger}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      onClick={() => input.current?.click()}
+    >
+      <span aria-hidden="true" className={css.icon}>＋</span>
+    </button>
     <input ref={input} type="file" multiple hidden onChange={(event) => {
       const files = [...(event.currentTarget.files ?? [])]
       event.currentTarget.value = ''
