@@ -1,20 +1,37 @@
 .trigger {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 5%, transparent);
-  color: inherit;
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
   cursor: pointer;
   touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  margin-inline: 2px 4px;
 }
 
 .trigger:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
 .trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .trigger:disabled { cursor: default; opacity: .45; }
-.icon { width: 17px; height: 17px; }
+.trigger:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.trigger:disabled { cursor: default; opacity: .5; }
+.root { position: relative; display: inline-flex; min-width: 0; }
+.backdrop { position: fixed; inset: 0; z-index: 9; background: transparent; }
+.surface { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 10; display: flex; flex-direction: column; gap: 8px; min-width: 220px; padding: 8px; border: 0; --dsw-elevation-stroke-color: var(--dsw-alias-border-l3); border-radius: 16px; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-panel); }
+.actions { display: flex; flex-direction: column; gap: 4px; }
+.action, .cancel { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; text-align: left; cursor: pointer; }
+.action:hover:not(:disabled), .cancel:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.action:disabled { cursor: wait; opacity: .5; }
+.status { padding: 0 12px 4px; color: var(--dsw-alias-label-secondary); font-size: 14px; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 600px) {
+  .backdrop { background: var(--dsw-alias-bg-mask-1); backdrop-filter: var(--dsw-mask-blur); }
+  .surface { position: fixed; right: 0; bottom: 0; left: 0; width: 100%; min-width: 0; box-sizing: border-box; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 16px 16px 0 0; }
+  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cancel { grid-column: 1 / -1; }
+}

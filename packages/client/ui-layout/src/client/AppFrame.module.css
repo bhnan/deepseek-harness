@@ -29,6 +29,14 @@
   border-right: 0.5px solid var(--dsw-alias-border-l3);
 }
 
+/* A narrow collapsed sidebar is represented by one fixed reopen control;
+   remove the zero-width column's border and clipping so the control remains
+   reachable at the viewport edge. */
+.frame[data-sidebar-mobile-collapsed] .sidebarCol {
+  overflow: visible;
+  border-right: none;
+}
+
 .centerCol {
   min-width: 0;
   display: flex;

@@ -3,6 +3,13 @@
   padding: 4px 12px 0;
 }
 
+.pickerRow {
+  display: flex;
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 2px 8px 0;
+}
+
 .imageItem {
   position: relative;
   width: 64px;

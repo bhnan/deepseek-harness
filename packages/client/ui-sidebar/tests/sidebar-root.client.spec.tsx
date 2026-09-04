@@ -175,4 +175,13 @@ describe('SidebarRoot shell', () => {
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
   })
+
+  it('renders only the reopen control when the mobile column is collapsed', () => {
+    mountShell({ collapsed: true, width: 0 })
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+    expect(screen.queryByTestId('region')).toBeNull()
+    expect(screen.queryByTestId('settings-seat')).toBeNull()
+    expect(screen.queryByTestId('footer-action-seat')).toBeNull()
+  })
 })
