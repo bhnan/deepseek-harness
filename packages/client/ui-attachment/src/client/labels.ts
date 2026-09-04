@@ -79,7 +79,11 @@ export function attachmentRailLabels(t: TranslateNS<'conversation'>): Attachment
   }
 }
 
-/** Resolve the mobile-safe native file chooser labels. */
+/**
+ * Resolve the mobile-safe native file chooser labels.
+ * @param t - conversation namespace translator.
+ * @returns translated native file chooser labels.
+ */
 export function filePickerLabels(t: TranslateNS<'conversation'>): FilePickerLabels {
   return {
     button: t('file.attach'),

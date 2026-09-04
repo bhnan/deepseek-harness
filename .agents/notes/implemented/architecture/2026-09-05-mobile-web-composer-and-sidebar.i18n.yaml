@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-05-mobile-web-composer-and-sidebar.md
-2026-09-05-mobile-web-composer-and-sidebar.md: bdc50440a26cad364990eb4b6f27e6fd0556c46a
-2026-09-05-mobile-web-composer-and-sidebar.zh.md: 0cf54132cdc612f0da630b8747bec21fa604d975
+2026-09-05-mobile-web-composer-and-sidebar.md: 26f04e3e2c0fae78681f4ead0cc2274ccce705b7
+2026-09-05-mobile-web-composer-and-sidebar.zh.md: 811cbf92998bc31df4384b38accc07b4ed0c2444
