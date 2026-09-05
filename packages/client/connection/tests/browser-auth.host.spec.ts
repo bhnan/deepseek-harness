@@ -4,8 +4,17 @@ import { createHmac } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
 import { BrowserAuth } from '../src/browser-auth.ts'
+import type { PasswordLoginConfig } from '../src/password-login.ts'
 import type { ConnectionIndexRequest, ConnectionIndexResponse } from '../src/rpc.ts'
 import { RecordCredentials } from './browser-credentials.ts'
+
+const PASSWORD_LOGIN: PasswordLoginConfig = {
+  username: 'operator',
+  password: 'correct horse battery staple',
+  sessionMaxAgeDays: 7,
+  failureDelayMs: 500,
+  secureCookie: true,
+}
 
 function signedCookie(store: RecordCredentials, name: string, payload: unknown): string {
   const body = typeof payload === 'string'
@@ -55,8 +64,9 @@ function createAuth(
   store: RecordCredentials,
   maxAgeDays = 30,
   processOwner: object = {},
+  passwordLogin?: PasswordLoginConfig,
 ): Promise<BrowserAuth> {
-  return BrowserAuth.create(processOwner, credentials(store), maxAgeDays)
+  return BrowserAuth.create(processOwner, credentials(store), maxAgeDays, passwordLogin)
 }
 
 function request(url: string, authority = '127.0.0.1:3080', init?: {
@@ -91,6 +101,99 @@ afterEach(() => {
 })
 
 describe('BrowserAuth', () => {
+  it('uses a clean root URL when password login is enabled', async () => {
+    const auth = await createAuth(new RecordCredentials(), 30, {}, PASSWORD_LOGIN)
+
+    expect(auth.authenticatedUrl('https://harness.example/nested?x=1#fragment'))
+      .toBe('https://harness.example/')
+  })
+
+  it('checks the configured account and mints a secure authority-bound seven-day session', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-05T00:00:00.000Z'))
+    const auth = await createAuth(new RecordCredentials(), 30, {}, PASSWORD_LOGIN)
+
+    expect(auth.verifyPasswordLogin('operator', 'correct horse battery staple')).toBe(true)
+    expect(auth.verifyPasswordLogin('operator', 'wrong')).toBe(false)
+    expect(auth.verifyPasswordLogin('wrong', 'correct horse battery staple')).toBe(false)
+    const setCookie = auth.mintPasswordSession(request('/', 'harness.example'))
+    if (setCookie === undefined) throw new Error('password login did not mint a session')
+    const cookie = setCookie.split(';', 1)[0]!
+
+    expect(setCookie)
+      .toMatch(/; Max-Age=604800; Path=\/; Expires=.*; HttpOnly; Secure; SameSite=Strict$/u)
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie }))).toBe(true)
+    expect(auth.isAuthenticated(request('/', 'other.example', { cookie }))).toBe(false)
+    expect(auth.expirePasswordSession(request('/', 'harness.example')))
+      .toMatch(/; Max-Age=0; Path=\/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict$/u)
+  })
+
+  it('rejects tampered, expired, and not-yet-issued password sessions', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-05T00:00:00.000Z'))
+    const auth = await createAuth(new RecordCredentials(), 30, {}, PASSWORD_LOGIN)
+    const setCookie = auth.mintPasswordSession(request('/', 'harness.example'))
+    if (setCookie === undefined) throw new Error('password login did not mint a session')
+    const [name, value] = setCookie.split(';', 1)[0]!.split('=') as [string, string]
+    const tamperedValue = `${value.slice(0, -1)}${value.endsWith('A') ? 'B' : 'A'}`
+
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: `${name}=broken` }))).toBe(false)
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: `${name}=${tamperedValue}` }))).toBe(false)
+    vi.setSystemTime(new Date('2026-09-12T00:00:00.000Z'))
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: `${name}=${value}` }))).toBe(false)
+    vi.setSystemTime(new Date('2026-09-04T23:59:59.999Z'))
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: `${name}=${value}` }))).toBe(false)
+  })
+
+  it('keeps independently minted password sessions valid together', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-05T00:00:00.000Z'))
+    const auth = await createAuth(new RecordCredentials(), 30, {}, PASSWORD_LOGIN)
+    const first = auth.mintPasswordSession(request('/', 'harness.example'))
+    const second = auth.mintPasswordSession(request('/', 'harness.example'))
+    if (first === undefined || second === undefined) throw new Error('password login did not mint sessions')
+    const firstCookie = first.split(';', 1)[0]!
+    const secondCookie = second.split(';', 1)[0]!
+
+    expect(firstCookie).not.toBe(secondCookie)
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: firstCookie }))).toBe(true)
+    expect(auth.isAuthenticated(request('/', 'harness.example', { cookie: secondCookie }))).toBe(true)
+  })
+
+  it('preserves password sessions across a restart until credentials change', async () => {
+    const store = new RecordCredentials()
+    const passwordLogin = PASSWORD_LOGIN
+    const active = await createAuth(store, 30, {}, passwordLogin)
+    const first = active.mintPasswordSession(request('/', 'harness.example'))
+    const second = active.mintPasswordSession(request('/', 'harness.example'))
+    if (first === undefined || second === undefined) throw new Error('password login did not mint sessions')
+    const cookies = [first, second].map(value => value.split(';', 1)[0]!)
+
+    const restarted = await createAuth(store, 30, {}, passwordLogin)
+    for (const cookie of cookies) {
+      expect(restarted.isAuthenticated(request('/', 'harness.example', { cookie }))).toBe(true)
+    }
+
+    for (const changedCredentials of [
+      { ...passwordLogin, username: 'different-operator' },
+      { ...passwordLogin, password: 'different-password' },
+    ]) {
+      const rotated = await createAuth(store, 30, {}, changedCredentials)
+      for (const cookie of cookies) {
+        expect(rotated.isAuthenticated(request('/', 'harness.example', { cookie }))).toBe(false)
+      }
+    }
+  })
+
+  it('does not accept a launch-token session while password login is enabled', async () => {
+    const store = new RecordCredentials()
+    const tokenAuth = await createAuth(store)
+    const tokenCookie = exchange(tokenAuth, 'harness.example').cookie
+    const passwordAuth = await createAuth(store, 30, {}, PASSWORD_LOGIN)
+
+    expect(passwordAuth.isAuthenticated(request('/', 'harness.example', { cookie: tokenCookie }))).toBe(false)
+  })
+
   it('mints one process token and a persistent authority-bound cookie', async () => {
     const store = new RecordCredentials()
     const processOwner = {}

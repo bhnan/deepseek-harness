@@ -8,7 +8,16 @@ import type { AddressInfo } from 'node:net'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { WebServer, WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
-import { API_PATH, RpcId, apply, inject, type ClientRequest, type HostConnectionHandle } from '../src/index.ts'
+import {
+  API_PATH,
+  Config,
+  RpcId,
+  apply,
+  inject,
+  type ClientRequest,
+  type ConnectionConfig,
+  type HostConnectionHandle,
+} from '../src/index.ts'
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../src/http-bridge.ts'
 import { provideBrowserCredentials } from './browser-credentials.ts'
 
@@ -81,7 +90,7 @@ function fakeResponse(): {
   return { response, state }
 }
 
-async function mounted(config?: { trustedHosts?: string[] }): Promise<{
+async function mounted(config?: ConnectionConfig): Promise<{
   routes: WebRoute[]
   upgrades: WebUpgradeRoute[]
   connection: HostConnectionHandle
@@ -116,6 +125,69 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
 }
 
 describe('connection node half', () => {
+  it('resolves optional password login defaults and rejects invalid deployment credentials', () => {
+    expect(Config({}).passwordLogin).toBeUndefined()
+    expect(Config({
+      passwordLogin: { username: 'operator', password: 'correct horse battery staple' },
+    } as never).passwordLogin).toEqual({
+      username: 'operator',
+      password: 'correct horse battery staple',
+      sessionMaxAgeDays: 7,
+      failureDelayMs: 500,
+      secureCookie: true,
+    })
+
+    for (const passwordLogin of [
+      { username: 'operator' },
+      { password: 'correct horse battery staple' },
+      { username: '', password: 'correct horse battery staple' },
+      { username: 'operator', password: '', failureDelayMs: 500 },
+      { username: 'operator', password: 'correct horse battery staple', sessionMaxAgeDays: 6 },
+      { username: 'operator', password: 'correct horse battery staple', failureDelayMs: -1 },
+      { username: 'operator', password: 'correct horse battery staple', failureDelayMs: 10_001 },
+      { username: 'operator', password: 'correct horse battery staple', failureDelayMs: 1.5 },
+    ]) {
+      expect(() => Config({ passwordLogin } as never)).toThrow()
+    }
+  })
+
+  it('rejects null password login configuration during parsing', () => {
+    expect(() => Config({ passwordLogin: null } as never)).toThrow(/passwordLogin/u)
+  })
+
+  it('keeps credentials out of malformed password login errors', () => {
+    const username = 'review-only-operator'
+    const password = 'review-only-secret'
+    let message = ''
+    try {
+      Config({
+        passwordLogin: { username, password, failureDelayMs: 10_001 },
+      } as never)
+    } catch (error) {
+      if (!(error instanceof Error)) throw error
+      message = error.message
+    }
+    expect(message).toContain('passwordLogin')
+    expect(message).not.toContain(username)
+    expect(message).not.toContain(password)
+  })
+
+  it('passes configured password login to the browser-session owner', async () => {
+    const { connection, dispose } = await mounted({
+      passwordLogin: {
+        username: 'operator',
+        password: 'correct horse battery staple',
+        sessionMaxAgeDays: 7,
+        failureDelayMs: 500,
+        secureCookie: true,
+      },
+    })
+
+    expect(connection.authenticatedUrl('https://harness.example/nested?x=1#fragment'))
+      .toBe('https://harness.example/')
+    await dispose()
+  })
+
   it('reserves enough default carrier capacity for the 200 MiB image batch', () => {
     expect(DEFAULT_MAX_REQUEST_BODY_BYTES).toBe(300 * 1024 * 1024)
     expect(DEFAULT_MAX_REQUEST_BODY_BYTES).toBeGreaterThan(Math.ceil(200 * 1024 * 1024 * 4 / 3) + 1024 * 1024)

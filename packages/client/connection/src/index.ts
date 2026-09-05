@@ -9,6 +9,8 @@ import { API_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
 import { BrowserAuth } from './browser-auth.ts'
+import { PasswordLoginConfigSchema } from './password-login.ts'
+import type { PasswordLoginConfig } from './password-login.ts'
 import { HostConnectionService } from './rpc-host.ts'
 
 export type {
@@ -41,6 +43,7 @@ export {
   serverResponseSchema,
 } from './rpc-schema.ts'
 export { HostConnectionService } from './rpc-host.ts'
+export type { PasswordLoginConfig } from './password-login.ts'
 
 export { API_PATH } from './api-path.ts'
 
@@ -80,15 +83,43 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /** Optional deployment-managed account replacing launch-token browser login. */
+  passwordLogin?: PasswordLoginConfig
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
 
-export const Config: z<ConnectionConfig> = z.object({
-  trustedHosts: z.array(String).default([]),
-  cookieMaxAgeDays: z.natural().min(1).default(30),
-  maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
-})
+export const Config: z<ConnectionConfig> = z.transform(
+  z.intersect([
+    z.object({
+      trustedHosts: z.array(String).default([]),
+      cookieMaxAgeDays: z.natural().min(1).default(30),
+      passwordLogin: z.any(),
+      maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
+    }),
+    // Retains undeclared config fields through transform's strict inner resolve.
+    z.any(),
+  ]),
+  (config) => {
+    if (config.passwordLogin === null) {
+      throw new z.ValidationError('must not be null', {
+        path: ['passwordLogin'],
+      })
+    }
+    if (config.passwordLogin === undefined) return config
+    try {
+      return {
+        ...config,
+        passwordLogin: PasswordLoginConfigSchema(config.passwordLogin),
+      }
+    } catch {
+      throw new z.ValidationError('invalid password login configuration', {
+        path: ['passwordLogin'],
+      })
+    }
+  },
+  true,
+).default({})
 
 /**
  * Mounts the API gateway under the browser transport prefix. Every request on
@@ -101,6 +132,7 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   // The Loader resolves schema defaults; hand-built test contexts may pass none.
   const trustedHosts = config?.trustedHosts ?? []
   const cookieMaxAgeDays = config?.cookieMaxAgeDays ?? 30
+  const passwordLogin = config?.passwordLogin
   const maxRequestBodyBytes = config?.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
@@ -109,7 +141,7 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   const connection = new HostConnectionService(
     ctx,
     trustedHosts,
-    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays),
+    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays, passwordLogin),
   )
   const fetchHandler = connection.createSharedFetchHandler(API_PATH)
   const route: WebRoute = {

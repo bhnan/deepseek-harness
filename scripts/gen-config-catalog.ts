@@ -427,12 +427,23 @@ function walkSchemaExpr(
 ): { keys: string[]; composes: string[] } {
   const keys: string[] = []
   const composes: string[] = []
+  const isStaticSchemaCall = (call: ts.CallExpression, method: string): boolean => {
+    return ts.isPropertyAccessExpression(call.expression)
+      && call.expression.name.text === method
+      && ts.isIdentifier(call.expression.expression)
+      && call.expression.expression.text === 'z'
+  }
   // Nested paths under one object property's VALUE expression: recurse through
   // chained refinements toward the base call, descending into object/array.
   const collectValuePaths = (value: ts.Expression, base: string): void => {
     const call = unwrapExpr(value)
     if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression)) return
     const method = call.expression.name.text
+    // A static transform preserves the keys of its first schema argument.
+    if (isStaticSchemaCall(call, 'transform') && call.arguments[0]) {
+      collectValuePaths(call.arguments[0], base)
+      return
+    }
     if (method === 'object' && call.arguments[0] && ts.isObjectLiteralExpression(call.arguments[0])) {
       for (const prop of call.arguments[0].properties) {
         if (!ts.isPropertyAssignment(prop)) continue
@@ -456,6 +467,11 @@ function walkSchemaExpr(
       return
     }
     const method = call.expression.name.text
+    // A static transform preserves the keys of its first schema argument.
+    if (isStaticSchemaCall(call, 'transform') && call.arguments[0]) {
+      visit(call.arguments[0])
+      return
+    }
     if (method === 'object' && call.arguments[0] && ts.isObjectLiteralExpression(call.arguments[0])) {
       for (const prop of call.arguments[0].properties) {
         if (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) {
@@ -469,14 +485,29 @@ function walkSchemaExpr(
       return
     }
     if (method === 'intersect' && call.arguments[0] && ts.isArrayLiteralExpression(call.arguments[0])) {
+      let hasWalkablePart = false
       for (const el of call.arguments[0].elements) {
         const part = unwrapExpr(el)
         if (ts.isPropertyAccessExpression(part) && part.name.text === 'Config' && ts.isIdentifier(part.expression)) {
           const imp = ctx.imports.get(part.expression.text)
-          if (imp && !imp.specifier.startsWith('.')) { composes.push(imp.specifier); continue }
+          if (imp && !imp.specifier.startsWith('.')) {
+            composes.push(imp.specifier)
+            hasWalkablePart = true
+            continue
+          }
         }
-        if (ts.isCallExpression(part)) { visit(part); continue }
+        // A zero-argument `z.any()` retains unconstrained extension fields,
+        // so it contributes no catalog key.
+        if (ts.isCallExpression(part) && isStaticSchemaCall(part, 'any') && part.arguments.length === 0) continue
+        if (ts.isCallExpression(part)) {
+          hasWalkablePart = true
+          visit(part)
+          continue
+        }
         violations.push(`${where}: intersect element '${part.getText(ctx.sf)}' is neither a workspace plugin's Config nor an inline schema call.`)
+      }
+      if (!hasWalkablePart) {
+        violations.push(`${where}: intersect contains no schema besides an unconstrained z.any() passthrough.`)
       }
       return
     }

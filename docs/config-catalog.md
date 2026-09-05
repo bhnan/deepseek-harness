@@ -331,12 +331,28 @@ export interface ConnectionConfig {
   trustedHosts?: string[]
   /** Absolute browser-session lifetime in days. Default: 30. */
   cookieMaxAgeDays?: number
+  /** Optional deployment-managed account replacing launch-token browser login. */
+  passwordLogin?: PasswordLoginConfig
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
+
+/** One deployment-managed account for browser password login. */
+export interface PasswordLoginConfig {
+  /** Shared account name accepted by the password-login form. */
+  readonly username: string
+  /** Shared password retained only by the Host process. */
+  readonly password: string
+  /** Absolute password-session lifetime in days. Default: 7; minimum: 7. */
+  readonly sessionMaxAgeDays: number
+  /** Bounded generic failed-login delay in milliseconds. Default: 500; maximum: 10,000. */
+  readonly failureDelayMs: number
+  /** Whether password-session cookies carry the Secure attribute. Default: true. */
+  readonly secureCookie: boolean
+}
 ```
 
-Source: [`packages/client/connection/src/index.ts:71`](../packages/client/connection/src/index.ts)
+Source: [`packages/client/connection/src/index.ts:74`](../packages/client/connection/src/index.ts)
 
 <a id="deepseek-aidsh-client-hmr"></a>
 
