@@ -9,7 +9,7 @@ import { API_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
 import { BrowserAuth } from './browser-auth.ts'
-import { PasswordLoginConfigSchema } from './password-login.ts'
+import { createPasswordLoginRoutes, PasswordLoginConfigSchema } from './password-login.ts'
 import type { PasswordLoginConfig } from './password-login.ts'
 import { HostConnectionService } from './rpc-host.ts'
 
@@ -138,11 +138,8 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   // silently authorizing its hostname prefix at request time.
   for (const entry of trustedHosts) assertTrustedAuthority(entry)
   assertImageBodyCapacity(ctx, maxRequestBodyBytes)
-  const connection = new HostConnectionService(
-    ctx,
-    trustedHosts,
-    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays, passwordLogin),
-  )
+  const browserAuth = await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays, passwordLogin)
+  const connection = new HostConnectionService(ctx, trustedHosts, browserAuth)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH)
   const route: WebRoute = {
     kind: 'prefix',
@@ -158,6 +155,18 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
     },
   }
   ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
+  if (passwordLogin !== undefined) {
+    for (const passwordRoute of createPasswordLoginRoutes(
+      browserAuth,
+      trustedHosts,
+      passwordLogin.failureDelayMs,
+    )) {
+      ctx.effect(
+        () => ctx.webServer.register(passwordRoute),
+        `client-connection: ${passwordRoute.path} route`,
+      )
+    }
+  }
   ctx.inject(['attachments'], (attachmentCtx) => {
     assertImageBodyCapacity(attachmentCtx, maxRequestBodyBytes)
   })

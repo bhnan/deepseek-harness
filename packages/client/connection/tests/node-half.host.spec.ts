@@ -1,4 +1,4 @@
-/** Node half: registers the /api prefix route bridging to the api gateway. */
+/** Node half: registers the /api prefix route and optional password-login routes. */
 import { EventEmitter } from 'node:events'
 import { createServer, request as httpRequest } from 'node:http'
 import { Readable } from 'node:stream'
@@ -64,6 +64,33 @@ function fakeRawPost(headers: Record<string, string>, url: string, body: string)
   return request
 }
 
+/** Form POST carrying the browser-native media type used by the password login page. */
+function fakeFormPost(
+  headers: Record<string, string>,
+  url: string,
+  body: string,
+): IncomingMessage {
+  return fakeRawPost({ 'content-type': 'application/x-www-form-urlencoded', ...headers }, url, body)
+}
+
+/** Request that records a body read so trust-fence tests can prove their short circuit. */
+function unreadRequest(
+  headers: Record<string, string>,
+  url: string,
+  method = 'POST',
+): { request: IncomingMessage; reads: () => number } {
+  let readCount = 0
+  const request = new Readable({
+    read() {
+      readCount++
+      this.push(Buffer.from('username=operator&password=correct'))
+      this.push(null)
+    },
+  }) as unknown as IncomingMessage
+  Object.assign(request, { url, method, headers })
+  return { request, reads: () => readCount }
+}
+
 /** Response recorder compatible with both the fence's short-circuit and the bridge. */
 function fakeResponse(): {
   response: ServerResponse
@@ -121,6 +148,28 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
   )
   const setCookie = exchanged.state.headers?.['set-cookie']
   if (setCookie === undefined) throw new Error('browser token exchange did not set a cookie')
+  return setCookie.split(';', 1)[0]!
+}
+
+const LOGIN_PATH = '/auth/login'
+const LOGOUT_PATH = '/auth/logout'
+const PASSWORD_LOGIN = {
+  username: 'operator',
+  password: 'correct horse battery staple',
+  sessionMaxAgeDays: 7,
+  failureDelayMs: 0,
+  secureCookie: true,
+} satisfies NonNullable<ConnectionConfig['passwordLogin']>
+
+function namedRoute(routes: readonly WebRoute[], path: string): WebRoute {
+  const route = routes.find(candidate => candidate.path === path)
+  if (route === undefined) throw new Error(`missing ${path} route`)
+  return route
+}
+
+function issuedCookie(state: { headers?: Record<string, string> }): string {
+  const setCookie = state.headers?.['set-cookie']
+  if (setCookie === undefined) throw new Error('password login did not set a cookie')
   return setCookie.split(';', 1)[0]!
 }
 
@@ -186,6 +235,269 @@ describe('connection node half', () => {
     expect(connection.authenticatedUrl('https://harness.example/nested?x=1#fragment'))
       .toBe('https://harness.example/')
     await dispose()
+  })
+
+  it('registers exact password routes only in password mode and removes them with the fiber', async () => {
+    const { routes, upgrades, dispose } = await mounted({ passwordLogin: PASSWORD_LOGIN })
+
+    expect(routes.map(route => [route.kind, route.path])).toEqual([
+      ['prefix', API_PATH],
+      ['exact', LOGIN_PATH],
+      ['exact', LOGOUT_PATH],
+    ])
+    expect(upgrades).toHaveLength(0)
+    await dispose()
+    expect(routes).toHaveLength(0)
+    expect(upgrades).toHaveLength(0)
+  })
+
+  it('serves localized host-owned password login HTML without deployment credentials', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const login = namedRoute(routes, LOGIN_PATH)
+    try {
+      const english = fakeResponse()
+      await login.handler(fakeRequest({
+        host: 'harness.example',
+        'accept-language': 'en-US,en;q=0.9',
+      }, LOGIN_PATH), english.response)
+      const chinese = fakeResponse()
+      await login.handler(fakeRequest({
+        host: 'harness.example',
+        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      }, LOGIN_PATH), chinese.response)
+      const preferredEnglish = fakeResponse()
+      await login.handler(fakeRequest({
+        host: 'harness.example',
+        'accept-language': 'zh;q=0.1,en;q=0.9',
+      }, LOGIN_PATH), preferredEnglish.response)
+      const excludedChinese = fakeResponse()
+      await login.handler(fakeRequest({
+        host: 'harness.example',
+        'accept-language': 'zh;q=0',
+      }, LOGIN_PATH), excludedChinese.response)
+
+      expect(english.state).toMatchObject({
+        status: 200,
+        headers: {
+          'cache-control': 'no-store',
+          'content-type': 'text/html; charset=utf-8',
+        },
+      })
+      expect(english.state.body).toContain('Sign in')
+      expect(chinese.state.body).toContain('登录')
+      expect(chinese.state.body).toContain('用户名')
+      expect(preferredEnglish.state.body).toContain('Sign in')
+      expect(excludedChinese.state.body).toContain('Sign in')
+      for (const body of [english.state.body, chinese.state.body, preferredEnglish.state.body, excludedChinese.state.body]) {
+        expect(body).not.toContain(PASSWORD_LOGIN.username)
+        expect(body).not.toContain(PASSWORD_LOGIN.password)
+      }
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('refuses untrusted and cross-site password routes before reading their bodies', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    try {
+      for (const [path, method, headers] of [
+        [LOGIN_PATH, 'GET', { host: 'other.example' }],
+        [LOGIN_PATH, 'POST', {
+          host: 'harness.example',
+          'content-type': 'application/x-www-form-urlencoded',
+          'sec-fetch-site': 'cross-site',
+        }],
+        [LOGOUT_PATH, 'POST', { host: 'harness.example', origin: 'http://other.example' }],
+      ] as const) {
+        const unread = unreadRequest(headers, path, method)
+        const response = fakeResponse()
+        await namedRoute(routes, path).handler(unread.request, response.response)
+        expect(response.state).toMatchObject({ status: 403, body: 'forbidden' })
+        expect(response.state.headers?.['set-cookie']).toBeUndefined()
+        expect(unread.reads()).toBe(0)
+      }
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('refuses an untrusted Host POST before reading its password login body', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    try {
+      const unread = unreadRequest({
+        host: 'other.example',
+        'content-type': 'application/x-www-form-urlencoded',
+      }, LOGIN_PATH)
+      const response = fakeResponse()
+      await namedRoute(routes, LOGIN_PATH).handler(unread.request, response.response)
+
+      expect(response.state).toMatchObject({ status: 403, body: 'forbidden' })
+      expect(response.state.headers?.['set-cookie']).toBeUndefined()
+      expect(unread.reads()).toBe(0)
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('issues a secure password session that authenticates /api', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const login = namedRoute(routes, LOGIN_PATH)
+    const api = namedRoute(routes, API_PATH)
+    try {
+      const submitted = fakeResponse()
+      await login.handler(fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        new URLSearchParams({
+          username: PASSWORD_LOGIN.username,
+          password: PASSWORD_LOGIN.password,
+        }).toString(),
+      ), submitted.response)
+      const cookie = issuedCookie(submitted.state)
+
+      expect(submitted.state).toMatchObject({
+        status: 303,
+        headers: {
+          'cache-control': 'no-store',
+          location: '/',
+          'referrer-policy': 'no-referrer',
+        },
+      })
+      expect(submitted.state.headers?.['set-cookie']).toMatch(/; HttpOnly; Secure; SameSite=Strict$/u)
+      expect(JSON.stringify(submitted.state)).not.toContain(PASSWORD_LOGIN.username)
+      expect(JSON.stringify(submitted.state)).not.toContain(PASSWORD_LOGIN.password)
+
+      const accepted = fakeResponse()
+      await api.handler(fakeRequest({ host: 'harness.example', cookie }), accepted.response)
+      expect(accepted.state.status).toBe(404)
+      const denied = fakeResponse()
+      await api.handler(fakeRequest({ host: 'harness.example' }), denied.response)
+      expect(denied.state).toMatchObject({ status: 401, body: 'unauthorized' })
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('returns generic cookie-free password-login failures', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const login = namedRoute(routes, LOGIN_PATH)
+    try {
+      const invalidUsername = fakeResponse()
+      await login.handler(fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        new URLSearchParams({ username: 'wrong', password: PASSWORD_LOGIN.password }).toString(),
+      ), invalidUsername.response)
+      const invalidPassword = fakeResponse()
+      await login.handler(fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        new URLSearchParams({ username: PASSWORD_LOGIN.username, password: 'wrong' }).toString(),
+      ), invalidPassword.response)
+      const malformed = fakeResponse()
+      await login.handler(fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        'username=operator&password=%',
+      ), malformed.response)
+      const missing = fakeResponse()
+      await login.handler(fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        '',
+      ), missing.response)
+      const unsupported = fakeResponse()
+      const unsupportedRequest = fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        new URLSearchParams({ username: PASSWORD_LOGIN.username, password: PASSWORD_LOGIN.password }).toString(),
+      )
+      unsupportedRequest.method = 'PUT'
+      await login.handler(unsupportedRequest, unsupported.response)
+      const oversized = fakeResponse()
+      const oversizedRequest = fakeFormPost(
+        { host: 'harness.example' },
+        LOGIN_PATH,
+        `username=${'x'.repeat(8 * 1024)}`,
+      )
+      await login.handler(oversizedRequest, oversized.response)
+
+      expect(invalidUsername.state).toEqual(invalidPassword.state)
+      expect(invalidUsername.state.status).toBe(401)
+      expect(malformed.state.status).toBe(400)
+      expect(missing.state.status).toBe(400)
+      expect(unsupported.state.status).toBe(405)
+      expect(oversized.state.status).toBe(413)
+      for (const failure of [invalidUsername, invalidPassword, malformed, missing, unsupported, oversized]) {
+        expect(failure.state.headers?.['set-cookie']).toBeUndefined()
+        expect(failure.state.body).toBe(invalidUsername.state.body)
+        expect(JSON.stringify(failure.state)).not.toContain(PASSWORD_LOGIN.username)
+        expect(JSON.stringify(failure.state)).not.toContain(PASSWORD_LOGIN.password)
+      }
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('expires only the logging-out browser cookie', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const login = namedRoute(routes, LOGIN_PATH)
+    const logout = namedRoute(routes, LOGOUT_PATH)
+    const api = namedRoute(routes, API_PATH)
+    const form = new URLSearchParams({
+      username: PASSWORD_LOGIN.username,
+      password: PASSWORD_LOGIN.password,
+    }).toString()
+    try {
+      const firstLogin = fakeResponse()
+      await login.handler(fakeFormPost({ host: 'harness.example' }, LOGIN_PATH, form), firstLogin.response)
+      const firstCookie = issuedCookie(firstLogin.state)
+      const secondLogin = fakeResponse()
+      await login.handler(fakeFormPost({ host: 'harness.example' }, LOGIN_PATH, form), secondLogin.response)
+      const secondCookie = issuedCookie(secondLogin.state)
+      const [cookieName] = firstCookie.split('=', 1)
+
+      expect(firstCookie).not.toBe(secondCookie)
+      const loggedOut = fakeResponse()
+      await logout.handler(fakeFormPost({ host: 'harness.example', cookie: firstCookie }, LOGOUT_PATH, ''), loggedOut.response)
+      expect(loggedOut.state).toMatchObject({
+        status: 303,
+        headers: {
+          'cache-control': 'no-store',
+          location: LOGIN_PATH,
+          'referrer-policy': 'no-referrer',
+        },
+      })
+      expect(loggedOut.state.headers?.['set-cookie'])
+        .toBe(`${cookieName}=; Max-Age=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict`)
+
+      const loggedOutBrowser = fakeResponse()
+      await api.handler(fakeRequest({ host: 'harness.example' }), loggedOutBrowser.response)
+      expect(loggedOutBrowser.state.status).toBe(401)
+      const otherBrowser = fakeResponse()
+      await api.handler(fakeRequest({ host: 'harness.example', cookie: secondCookie }), otherBrowser.response)
+      expect(otherBrowser.state.status).toBe(404)
+    } finally {
+      await dispose()
+    }
   })
 
   it('reserves enough default carrier capacity for the 200 MiB image batch', () => {
@@ -520,10 +832,13 @@ describe('connection node half', () => {
 })
 
 describe('connection node half over a real HTTP server', () => {
-  /** Serve the registered prefix route from a real server and return its port. */
-  async function serve(routes: WebRoute[]): Promise<{ port: number; close: () => Promise<void> }> {
+  /** Serve one registered route from a real server and return its port. */
+  async function serve(
+    routes: WebRoute[],
+    route = routes[0]!,
+  ): Promise<{ port: number; close: () => Promise<void> }> {
     const server = createServer((request, response) => {
-      void routes[0]!.handler(request, response)
+      void route.handler(request, response)
     })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address() as AddressInfo
@@ -558,6 +873,167 @@ describe('connection node half over a real HTTP server', () => {
       request.end()
     })
   }
+
+  /** One deliberately unfinished real HTTP request. */
+  interface IncompleteRequest {
+    readonly path: string
+    readonly method: string
+    readonly headers: Readonly<Record<string, string>>
+    readonly body: string
+    readonly timeoutMs?: number
+  }
+
+  /** Submit one body chunk without ending the request, then capture the server response. */
+  function streamIncompleteRequest(port: number, options: IncompleteRequest): Promise<{
+    status: number
+    connection: string | undefined
+    setCookie: string | string[] | undefined
+    body: string
+  }> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const request = httpRequest(
+        {
+          host: '127.0.0.1',
+          port,
+          path: options.path,
+          method: options.method,
+          headers: {
+            host: 'harness.example',
+            connection: 'keep-alive',
+            'transfer-encoding': 'chunked',
+            ...options.headers,
+          },
+        },
+        (response) => {
+          const chunks: Buffer[] = []
+          response.on('data', (chunk: Buffer) => { chunks.push(Buffer.from(chunk)) })
+          response.once('error', (error) => {
+            if (!settled) {
+              settled = true
+              reject(error)
+            }
+          })
+          response.once('end', () => {
+            if (settled) return
+            settled = true
+            resolve({
+              status: response.statusCode ?? 0,
+              connection: response.headers.connection,
+              setCookie: response.headers['set-cookie'],
+              body: Buffer.concat(chunks).toString(),
+            })
+            request.destroy()
+          })
+        },
+      )
+      request.once('error', (error) => {
+        if (!settled) {
+          settled = true
+          reject(error)
+        }
+      })
+      request.setTimeout(options.timeoutMs ?? 2_000, () => {
+        request.destroy(new Error(`timed out waiting for ${options.path} response`))
+      })
+      request.write(options.body)
+    })
+  }
+
+  it('delivers a generic 413 before closing an oversized streamed login request', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const { port, close } = await serve(routes, namedRoute(routes, LOGIN_PATH))
+    try {
+      const response = await streamIncompleteRequest(port, {
+        path: LOGIN_PATH,
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: `username=${'x'.repeat(8 * 1024)}`,
+      })
+
+      expect(response).toMatchObject({ status: 413, connection: 'close' })
+      expect(response.setCookie).toBeUndefined()
+      expect(response.body).toContain('Unable to sign in. Please try again.')
+      expect(response.body).not.toContain(PASSWORD_LOGIN.username)
+      expect(response.body).not.toContain(PASSWORD_LOGIN.password)
+    } finally {
+      await close()
+      await dispose()
+    }
+  })
+
+  it.each([
+    ['an untrusted login', LOGIN_PATH, 'POST', {
+      host: 'other.example',
+      'content-type': 'application/x-www-form-urlencoded',
+    }, 403],
+    ['a cross-site login', LOGIN_PATH, 'POST', {
+      'content-type': 'application/x-www-form-urlencoded',
+      'sec-fetch-site': 'cross-site',
+    }, 403],
+    ['a login with an invalid media type', LOGIN_PATH, 'POST', {
+      'content-type': 'text/plain',
+    }, 400],
+    ['an unsupported login method', LOGIN_PATH, 'PUT', {
+      'content-type': 'application/x-www-form-urlencoded',
+    }, 405],
+    ['a logout POST', LOGOUT_PATH, 'POST', {
+      'content-type': 'application/x-www-form-urlencoded',
+    }, 303],
+  ] as const)('closes an unread body after %s', async (label, path, method, headers, status) => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const { port, close } = await serve(routes, namedRoute(routes, path))
+    try {
+      const response = await streamIncompleteRequest(port, {
+        path,
+        method,
+        headers,
+        body: 'username=operator&password=correct',
+      })
+
+      expect(response).toMatchObject({ status, connection: 'close' })
+      if (label === 'a logout POST') {
+        expect(response.setCookie).toEqual([expect.stringMatching(/^[^=]+=; Max-Age=0;/u)])
+      } else {
+        expect(response.setCookie).toBeUndefined()
+      }
+      expect(JSON.stringify(response)).not.toContain(PASSWORD_LOGIN.username)
+      expect(JSON.stringify(response)).not.toContain(PASSWORD_LOGIN.password)
+    } finally {
+      await close()
+      await dispose()
+    }
+  })
+
+  it('times out an incomplete login form before the client deadline', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const { port, close } = await serve(routes, namedRoute(routes, LOGIN_PATH))
+    try {
+      const response = await streamIncompleteRequest(port, {
+        path: LOGIN_PATH,
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'username=operator',
+      })
+
+      expect(response).toMatchObject({ status: 408, connection: 'close' })
+      expect(response.setCookie).toBeUndefined()
+      expect(JSON.stringify(response)).not.toContain(PASSWORD_LOGIN.username)
+      expect(JSON.stringify(response)).not.toContain(PASSWORD_LOGIN.password)
+    } finally {
+      await close()
+      await dispose()
+    }
+  })
 
   it('requires authentication uniformly over a real HTTP request', async () => {
     // A real IncomingMessage pins the exploit boundary: a client-controlled
