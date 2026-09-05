@@ -11,6 +11,7 @@
     "src/commands.ts",
     "src/directory-picker.ts",
     "src/workspace-files.ts",
+    "src/workspace-upload.ts",
     "src/feed.ts"
   ],
   "references": [
