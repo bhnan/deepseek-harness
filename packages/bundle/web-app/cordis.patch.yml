@@ -167,6 +167,22 @@
         # A deployment adding authorities keeps this expression and concatenates
         # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
         trustedHosts: !!js ctx.webRuntime.trustedHosts
+        passwordLogin: !!js >-
+          (() => {
+            const username = process.env.DSH_WEB_AUTH_USERNAME;
+            const password = process.env.DSH_WEB_AUTH_PASSWORD;
+            if (username === undefined && password === undefined) return undefined;
+            const sessionMaxAgeDays = process.env.DSH_WEB_AUTH_SESSION_DAYS;
+            const failureDelayMs = process.env.DSH_WEB_AUTH_FAILURE_DELAY_MS;
+            const secureCookie = process.env.DSH_WEB_AUTH_SECURE_COOKIE;
+            return {
+              username,
+              password,
+              sessionMaxAgeDays: sessionMaxAgeDays === undefined ? 7 : sessionMaxAgeDays.trim() === '' ? sessionMaxAgeDays : Number(sessionMaxAgeDays),
+              failureDelayMs: failureDelayMs === undefined ? 500 : failureDelayMs.trim() === '' ? failureDelayMs : Number(failureDelayMs),
+              secureCookie: secureCookie === undefined ? true : secureCookie === 'true' ? true : secureCookie === 'false' ? false : secureCookie,
+            };
+          })()
 
     # Raw Blob and ReadableStream uploads run independently of Connection's
     # RPC and generation service.

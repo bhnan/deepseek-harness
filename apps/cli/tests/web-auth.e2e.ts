@@ -11,11 +11,18 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const DSH_SOURCE_BIN = join(REPO_ROOT, 'apps/cli/src/bin.ts')
 const TSX_LOADER = pathToFileURL(createRequire(join(REPO_ROOT, 'package.json')).resolve('tsx')).href
+const WEB_AUTH_ENVIRONMENT_NAMES = new Set([
+  'DSH_WEB_AUTH_USERNAME',
+  'DSH_WEB_AUTH_PASSWORD',
+  'DSH_WEB_AUTH_SESSION_DAYS',
+  'DSH_WEB_AUTH_FAILURE_DELAY_MS',
+  'DSH_WEB_AUTH_SECURE_COOKIE',
+])
 
 interface RunningWeb {
   readonly child: ChildProcess
@@ -51,7 +58,7 @@ async function freePort(): Promise<number> {
 
 function cleanEnvironment(root: string, dshHome: string): NodeJS.ProcessEnv {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-    !/(?:KEY|SECRET|TOKEN|PASSWORD)/iu.test(name)))
+    !/(?:KEY|SECRET|TOKEN|PASSWORD)/iu.test(name) && !WEB_AUTH_ENVIRONMENT_NAMES.has(name)))
   return {
     ...env,
     DSH_AGENTS_HOME: join(root, '.agents'),
@@ -152,6 +159,24 @@ function describeSettings(port: number, host: string, cookie?: string): Promise<
 }
 
 describe('dsh web authentication through the real CLI', () => {
+  it('removes ambient password-login configuration from token-mode child environments', () => {
+    const ambientPasswordLogin = {
+      DSH_WEB_AUTH_USERNAME: 'ambient-operator',
+      DSH_WEB_AUTH_PASSWORD: 'ambient-secret',
+      DSH_WEB_AUTH_SESSION_DAYS: '9',
+      DSH_WEB_AUTH_FAILURE_DELAY_MS: '0',
+      DSH_WEB_AUTH_SECURE_COOKIE: 'false',
+    }
+    try {
+      for (const [name, value] of Object.entries(ambientPasswordLogin)) vi.stubEnv(name, value)
+
+      const environment = cleanEnvironment('/tmp/root', '/tmp/dsh-home')
+      for (const name of Object.keys(ambientPasswordLogin)) expect(environment).not.toHaveProperty(name)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('rejects a forged loopback Host and preserves the browser cookie across restart', { timeout: 180_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-web-auth-real-cli-'))
     const dshHome = join(root, '.dsh')

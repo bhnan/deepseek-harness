@@ -1,9 +1,13 @@
 /** Node half: registers the /api prefix route and optional password-login routes. */
 import { EventEmitter } from 'node:events'
+import { readFileSync } from 'node:fs'
 import { createServer, request as httpRequest } from 'node:http'
 import { Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
+import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { interpolate } from '@deepseek-ai/cordis-plugin-loader'
 import { describe, expect, it } from 'vitest'
+import * as yaml from 'js-yaml'
 import type { AddressInfo } from 'node:net'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
@@ -173,7 +177,88 @@ function issuedCookie(state: { headers?: Record<string, string> }): string {
   return setCookie.split(';', 1)[0]!
 }
 
+/** Resolve the Web profile's Connection configuration against one launch environment. */
+function webProfileConnectionConfig(environment: NodeJS.ProcessEnv): ConnectionConfig {
+  const patches = yaml.load(
+    readFileSync(new URL('../../../bundle/web-app/cordis.patch.yml', import.meta.url), 'utf8'),
+    { schema: entryListSchema },
+  ) as Array<{ insert?: Array<{ config?: Record<string, unknown>; id?: string }> }>
+  const config = patches.flatMap(patch => patch.insert ?? []).find(row => row.id === 'connection')?.config
+  if (config === undefined) throw new Error('web profile must configure Connection')
+  return Config(interpolate({
+    ctx: { webRuntime: { trustedHosts: [] } },
+    process: { env: environment },
+  }, config) as never)
+}
+
 describe('connection node half', () => {
+  it('loads password login only from a complete Web account environment', () => {
+    expect(webProfileConnectionConfig({}).passwordLogin).toBeUndefined()
+    expect(() => webProfileConnectionConfig({ DSH_WEB_AUTH_USERNAME: 'operator' }))
+      .toThrow(/passwordLogin/u)
+
+    expect(webProfileConnectionConfig({
+      DSH_WEB_AUTH_USERNAME: 'operator',
+      DSH_WEB_AUTH_PASSWORD: 'correct horse battery staple',
+    }).passwordLogin).toEqual({
+      username: 'operator',
+      password: 'correct horse battery staple',
+      sessionMaxAgeDays: 7,
+      failureDelayMs: 500,
+      secureCookie: true,
+    })
+  })
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('loads %s as secureCookie and typed deployment values', (secureCookie, expectedSecureCookie) => {
+    expect(webProfileConnectionConfig({
+      DSH_WEB_AUTH_USERNAME: 'operator',
+      DSH_WEB_AUTH_PASSWORD: 'correct horse battery staple',
+      DSH_WEB_AUTH_SESSION_DAYS: '9',
+      DSH_WEB_AUTH_FAILURE_DELAY_MS: '0',
+      DSH_WEB_AUTH_SECURE_COOKIE: secureCookie,
+    }).passwordLogin).toEqual({
+      username: 'operator',
+      password: 'correct horse battery staple',
+      sessionMaxAgeDays: 9,
+      failureDelayMs: 0,
+      secureCookie: expectedSecureCookie,
+    })
+  })
+
+  it.each([
+    { DSH_WEB_AUTH_USERNAME: '' },
+    { DSH_WEB_AUTH_PASSWORD: '' },
+    { DSH_WEB_AUTH_SESSION_DAYS: 'not-a-number' },
+    { DSH_WEB_AUTH_SESSION_DAYS: '' },
+    { DSH_WEB_AUTH_SESSION_DAYS: '  ' },
+    { DSH_WEB_AUTH_FAILURE_DELAY_MS: 'not-a-number' },
+    { DSH_WEB_AUTH_FAILURE_DELAY_MS: '' },
+    { DSH_WEB_AUTH_FAILURE_DELAY_MS: '  ' },
+    { DSH_WEB_AUTH_SECURE_COOKIE: 'not-a-boolean' },
+    { DSH_WEB_AUTH_SECURE_COOKIE: '' },
+    { DSH_WEB_AUTH_SECURE_COOKIE: '  ' },
+  ])('rejects malformed, empty, and blank Web password deployment values: %o', (environment) => {
+    const username = 'review-only-operator'
+    const password = 'review-only-secret'
+    let message = ''
+    try {
+      webProfileConnectionConfig({
+        DSH_WEB_AUTH_USERNAME: username,
+        DSH_WEB_AUTH_PASSWORD: password,
+        ...environment,
+      })
+    } catch (error) {
+      if (!(error instanceof Error)) throw error
+      message = error.message
+    }
+    expect(message).toMatch(/passwordLogin/u)
+    expect(message).not.toContain(username)
+    expect(message).not.toContain(password)
+  })
+
   it('resolves optional password login defaults and rejects invalid deployment credentials', () => {
     expect(Config({}).passwordLogin).toBeUndefined()
     expect(Config({

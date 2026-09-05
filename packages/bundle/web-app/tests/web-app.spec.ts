@@ -84,11 +84,12 @@ function fakeHttpServer(host: '127.0.0.1' | '0.0.0.0' = '127.0.0.1'): { server: 
 }
 
 /** Deterministic Host Connection face for URL publication and frontend injection. */
-function provideConnection(ctx: Context): void {
+function provideConnection(ctx: Context, passwordLogin = false): void {
   ctx.provide('connection', {
     authenticatedUrl(baseUrl: string) {
       const url = new URL(baseUrl)
       url.pathname = '/'
+      if (passwordLogin) return url.href
       url.searchParams.set('token', 'test-token')
       return url.href
     },
@@ -110,6 +111,23 @@ interface BashContribution {
 }
 
 describe('web-app runtime glue', () => {
+  it('prints and opens a clean URL for a password-mode Connection', async () => {
+    stageDist()
+    const ctx = new Context()
+    ctx.provide('webServer', fakeHttpServer().server)
+    provideConnection(ctx, true)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const openBrowser = vi.fn(async () => {})
+    internals.openBrowser = openBrowser
+
+    apply(ctx, new Config({ openBrowser: true, printUrl: true, surfaceContext: false, trustedHosts: [] }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567/')
+    expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:4567/')
+    await ctx.fiber.dispose()
+  })
+
   it('mounts dist serving, prompt section, bash variables, and publishes the URL with the LAN snapshot', async () => {
     stageDist()
     const ctx = new Context()
