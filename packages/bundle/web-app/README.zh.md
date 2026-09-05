@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-运行 `dsh --profile web`，界面会在你的默认浏览器中打开，即可与 agent（智能体）交互式聊天。你会获得会话视图、模型与设置管理以及会话历史，背后与其他表层相同的模型访问、工具与安全默认值。该命令会打印带 token 的启动 URL；浏览器用该 token 换取签名会话 cookie，再重定向到干净的根 URL。你可以从命令行更改端口、关闭浏览器交接并允许额外主机；有意不支持绑定所有网络接口。需要浏览器中的交互式工作时选择它；`dsh-headless` 是一次性的命令行兄弟表层。
+运行 `dsh --profile web`，界面会在你的默认浏览器中打开，即可与 agent（智能体）交互式聊天。你会获得会话视图、模型与设置管理以及会话历史，背后与其他表层相同的模型访问、工具与安全默认值。没有密码登录环境配置时，该命令打印带 token 的启动 URL，浏览器用该 token 换取签名会话 cookie。配置密码登录后，它打印并打开干净的根 URL，浏览器在 Host 所有的路由处登录。你可以从命令行更改端口、关闭浏览器交接并声明受信任的公开 authority；随附 CLI 仍只支持 loopback。需要浏览器中的交互式工作时选择它；`dsh-headless` 是一次性的命令行兄弟表层。
 
 ## 目录
 
@@ -34,7 +34,7 @@ dsh --profile web
 dsh --profile web --no-open --port 8080
 ```
 
-启动后你会看到 `dsh web:` 行，其根 URL 携带新的进程 token。除非 `--no-open` 或 SSH 会话抑制，否则默认浏览器会打开该 URL、取得签名 cookie，再重定向到干净的根页面。页面加载且你可以与 agent（智能体）对话，就说明成功了。两种可预期的失败：前端未构建时，启动会以构建提示停止（checkout 中运行 `pnpm run build`）；浏览器无法打开时，stderr 会打印不含凭据的诊断，但服务器会继续运行——请自行打开已打印的启动 URL。
+启动后你会看到 `dsh web:` 行。没有密码登录配置时，其根 URL 携带新的进程 token；浏览器用它换取签名 cookie，再重定向到干净的根页面。配置密码登录时，该 URL 是干净的，浏览器在 `/auth/login` 登录；不会打印、打开或接受启动 token。除非 `--no-open` 或 SSH 会话抑制，否则默认浏览器会打开该 URL。页面加载且你可以与 agent（智能体）对话，就说明成功了。两种可预期的失败：前端未构建时，启动会以构建提示停止（checkout 中运行 `pnpm run build`）；浏览器无法打开时，stderr 会打印不含凭据的诊断，但服务器会继续运行——请自行打开已打印的启动 URL。
 
 ### 配置
 
@@ -47,11 +47,25 @@ dsh --profile web --no-open --port 8080
 | `surfaceContext` | `true` | 给 agent（智能体）提供 GUI 定位上下文，并把 `DSH_WEB_URL` 暴露给其 shell 命令 |
 | `trustedHosts` | `[]` | 允许从网络访问 GUI 的额外主机 |
 
-生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-app)是每个受支持字段及其 JSDoc 的穷尽式真源。
+生成的 [Web App 配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-app)和 [Connection 配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-client-connection)是受支持 Cordis 配置字段及其 JSDoc 的穷尽式真源。
+
+### 密码登录环境
+
+Web profile 从以下启动环境变量构造 Connection 的可选密码登录配置。只有两个凭据变量都存在且非空时才启用密码模式；否则使用既有 token 模式。无效值会让启动失败，且不会泄露凭据。
+
+| 变量 | 默认值 | 含义 |
+|---|---:|---|
+| `DSH_WEB_AUTH_USERNAME` | — | 必须与 `DSH_WEB_AUTH_PASSWORD` 同时设置；为单个由部署管理的账户命名。 |
+| `DSH_WEB_AUTH_PASSWORD` | — | 必须与 `DSH_WEB_AUTH_USERNAME` 同时设置；只由 Host 进程保留。 |
+| `DSH_WEB_AUTH_SESSION_DAYS` | `7` | 密码会话有效期（天）；至少为 7 的自然数。 |
+| `DSH_WEB_AUTH_FAILURE_DELAY_MS` | `500` | 通用登录失败延迟（毫秒）；不大于 10,000 的自然数。 |
+| `DSH_WEB_AUTH_SECURE_COOKIE` | `true` | 密码 cookie 的 `Secure` 属性；只接受精确字面量 `true` 和 `false`。 |
+
+密码会话是 host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`、绑定 authority、已签名且有绝对过期时间。它们可以跨浏览器和设备共存；`POST /auth/logout` 只会使调用方浏览器的 authority cookie 过期。更改任一已配置凭据并重启 DSH 会使所有密码会话失效，跨重启保持不变的配置会保留它们。[Web 密码认证决策](../../../.agents/notes/implemented/architecture/2026-09-05-web-password-authentication.zh.md)持有安全理由；[浏览器启动 token 决策](../../../.agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.zh.md)持有没有密码配置时使用的模式。
 
 ### LAN 访问与可信主机
 
-默认情况下 GUI 只接受本机的连接。绑定所有网络接口的部署也会允许 LAN 内的浏览器访问，此时打印的 URL 会附带一个 LAN 地址；`--trusted-host` 在两种情况下都能添加额外主机。Host 与 Origin 检查控制可达性，token 交换则认证每个 Host API 方法与 WebSocket stream。LAN 地址只在启动时采样一次，因此之后的网络变化不会被感知——重启 GUI 以重新公告。
+随附 Web CLI 只监听 loopback。预期的公开部署由 Caddy 终止 HTTPS、转发到该 loopback listener，并通过 `--trusted-host` 传入公开 authority。`--trusted-host` 只扩展 Host/Origin 信任栅栏；它既不配置 Caddy，也不使公开的非 loopback DSH listener 受支持。Host 与 Origin 校验是 DNS rebinding 与跨站信任栅栏，而不是调用方身份；签名浏览器 cookie 认证每个 Host API 方法和 WebSocket stream。应用不接受代理身份或转发 header。
 
 ### 通过 SSH 运行
 
@@ -114,6 +128,8 @@ URL 行与浏览器交接都是就绪信号：监督方一观察到该行就发�
 - [dsh-client-hmr](../../client/hmr/README.zh.md)——开发期间客户端插件变更如何重载。
 - [frontend-static](../../host/frontend-static/README.zh.md)——已构建的前端如何被服务。
 - [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-app)——每个受支持配置字段及其源声明。
+- [Web 密码认证](../../../.agents/notes/implemented/architecture/2026-09-05-web-password-authentication.zh.md)——单账户密码登录及其部署姿态。
+- [浏览器启动 token 认证](../../../.agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.zh.md)——没有密码配置时的默认模式。
 
 -----
 
@@ -146,7 +162,8 @@ URL 行与浏览器交接都是就绪信号：监督方一观察到该行就发�
 - **只能观察到交接的启动**——GUI 只报告浏览器被请求打开，而不是它确实打开了；之后的浏览器退出永远不会上报，打印的 URL 是你的手动回退路径。
 - **SSH 会话保留 URL 但跳过浏览器交接**——打印的 URL 指向远端宿主机 loopback 端点；SSH 客户端或编辑器必须暴露并打开本地转发地址。
 - **`BROWSER` 覆盖只能来自环境**——被发现的 `.env` 不能设置 `BROWSER`；只有继承值能为自动交接选择可执行文件。
-- **不支持绑定所有网络接口**——出于安全考虑，`--host 0.0.0.0` 会在启动时被拒绝；请使用默认 loopback 主机。
+- **随附 Web CLI 只支持 loopback**——出于安全考虑，`--host 0.0.0.0` 会在启动时被拒绝。Caddy 部署必须让 DSH 保持在 loopback；本包不会配备或配置该代理。
+- **密码登录有意只支持一个账户**——它不提供外部 IdP、角色、多个账户、设备清单或按设备的服务端撤销。
 
 <a id="dev-note"></a>
 ### 开发备注

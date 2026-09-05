@@ -32,11 +32,20 @@ kind: "package-reference"
 <a id="browser-authentication-and-request-trust"></a>
 ## 浏览器认证与请求信任
 
-每个 Host RPC 方法和 WebSocket stream 都要求同一个浏览器会话，不存在按方法区分的 loopback 层。每个进程生成一个随机启动令牌。`dsh-web-app` 打印并打开带 `?token=...` 的普通根 URL；`frontend-static` 把根路径和 index 请求交给 `ctx.connection.authorizeIndex`，后者只在 `GET /` 接受该令牌，写入绑定 authority 的签名 cookie，再重定向到干净的 `/`。缺失、过期、畸形或 authority 不匹配的 cookie 会在 RPC 分发前得到 401。静态资源保持公开。HTTP 载体不在根路径交换之外接受 query token，也不接受 Authorization header token。
+每个 Host RPC 方法和 WebSocket stream 都要求同一个浏览器会话，不存在按方法区分的 loopback 层。`passwordLogin` 缺失时，token 模式生成一个随机进程 token。`dsh-web-app` 打印并打开带 `?token=...` 的根 URL；`frontend-static` 只在 `GET /` 接受该 token，写入绑定 authority 的签名 cookie，再重定向到干净的 `/`。HTTP 载体不在这次根路径交换之外接受 query token，也不接受 Authorization header token。token cookie 通过 `cookieMaxAgeDays` 的默认值拥有 30 天绝对有效期，并为随附的 loopback HTTP 应用刻意不设置 `Secure`。
 
-cookie 签名密钥是 `ctx.credentials` 中由 `client-connection/browser-session` 拥有的 grant 记录。本地提供方把它持久化到 `$DSH_HOME/.credentials.yaml`；`BrowserAuth` 在 Connection 激活期间加载或创建该记录，并把密钥留在内存中，因此请求认证同步执行。删除或替换该记录会在下一次 Connection 激活时生效。cookie 携带绝对签发与过期区间，`cookieMaxAgeDays` 默认设为 30 天，并在确定性名称与签名 payload 中同时绑定规范化 hostname 和 port。它是 host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`；随附服务器使用 loopback HTTP，因此刻意不设置 `Secure`。
+`passwordLogin` 存在时，它选择一个由部署管理的账户并关闭 token 接受。Web 应用打印并打开干净的根 URL。`GET /auth/login` 提供由 `Accept-Language` 选择的 Host 所有英文或中文表单；`POST /auth/login` 在表单凭据有效后签发会话，精确的 `POST /auth/logout` 只使请求浏览器在该 authority 上的 cookie 过期。登录页绝不包含已配置的凭据值。没有有效会话的受保护 index 请求返回 401，可信但没有有效会话的 API 请求也一样；非 index 静态资产仍然公开。
 
-认证之前，每个请求仍经过 `src/api-request-trust.ts`。其 `Host` 必须是 loopback，或与 `trustedHosts` 条目匹配：带端口的 `host:port` 精确匹配，不带端口的条目匹配任意端口，两侧均经 WHATWG 归一化。若附带 `Origin`，它必须等于该 Host；`sec-fetch-site: cross-site` 一律拒绝。畸形配置 authority 会让插件加载失败。这些检查防御 DNS rebinding 与跨站浏览器请求，绝不建立身份。Host/Origin 校验失败返回 403；Host 可信但未认证的请求返回 401。`dsh web --host 0.0.0.0` 仍不受支持。决策记录：[浏览器请求信任](../../../.agents/notes/implemented/architecture/2026-07-28-api-browser-trust-boundary.zh.md)与[浏览器令牌认证](../../../.agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.zh.md)。
+| `passwordLogin` 字段 | 默认值 | 语义 |
+|---|---:|---|
+| `username` 与 `password` | — | 两者都必填且非空；畸形配置会导致加载失败，且不暴露任一值。 |
+| `sessionMaxAgeDays` | `7` | 密码会话的绝对有效期（天）；必须至少为 7。 |
+| `failureDelayMs` | `500` | 通用登录失败延迟（毫秒）；不得超过 10,000。 |
+| `secureCookie` | `true` | 向密码会话 cookie 添加 `Secure`。 |
+
+cookie 签名密钥是 `ctx.credentials` 中由 `client-connection/browser-session` 拥有的 grant 记录。本地提供方把它持久化到 `$DSH_HOME/.credentials.yaml`；`BrowserAuth` 在 Connection 激活期间加载或创建该记录，并把密钥留在内存中，因此请求认证同步执行。删除或替换该记录会在下一次 Connection 激活时生效。所有 cookie 都在确定性名称与签名 payload 中绑定规范化 hostname 和 port，是 host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`，并带有绝对签发与过期时间。密码 cookie 为 v2，额外携带带键的凭据版本和随机 session id，绝不携带密码、密码 hash 或签名密钥。独立浏览器和设备可以同时持有有效 cookie；更改已配置凭据并重启 DSH 会使每个密码 cookie 失效，跨重启保持不变的凭据会保留它们。
+
+认证之前，每个 `/api` 请求和每条密码路由都经过 `src/api-request-trust.ts`。其 `Host` 必须是 loopback，或与 `trustedHosts` 条目匹配：带端口的 `host:port` 精确匹配，不带端口的条目匹配任意端口，两侧均经 WHATWG 归一化。若附带 `Origin`，它必须等于该 Host；`sec-fetch-site: cross-site` 一律拒绝。畸形配置 authority 会让插件加载失败。这些检查防御 DNS rebinding 与跨站浏览器请求，绝不建立身份。Host/Origin 校验失败会在读取登录 body 前返回 403；Host 可信但未认证的请求返回 401。`dsh web --host 0.0.0.0` 仍不受支持。决策记录：[浏览器请求信任](../../../.agents/notes/implemented/architecture/2026-07-28-api-browser-trust-boundary.zh.md)、[浏览器 token 认证](../../../.agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.zh.md)与[Web 密码认证](../../../.agents/notes/implemented/architecture/2026-09-05-web-password-authentication.zh.md)。
 
 <a id="connection-generation"></a>
 ## Connection generation
@@ -59,8 +68,8 @@ API Gateway Client 把内部 `$events` logical stream 注册为唯一 generation
 <a id="known-limitations-and-deferred-work"></a>
 
 - **缓冲型 `/api` 路由会把每个请求体保留在内存里**：`maxRequestBodyBytes`（默认 300 MiB，按默认 200 MiB 图片总量上限经 base64 膨胀加信封余量得出）限制普通图片与 RPC 信封。显式启用的流式路由接收带背压的分块并绕过总量上限；路由实现负责持久化、取消与存储配额。
-- **浏览器 cookie 不带 `Secure`**：随附载体是 loopback HTTP；若部署经明文网络暴露同一 authority，bearer cookie 可能在传输中泄露。
-- **没有 logout 操作**：清除浏览器 cookie 会结束单个浏览器会话；删除 owner 凭据记录并重启 `dsh` 会撤销全部会话。
+- **密码登录是一个共享账户**：它没有外部 IdP、角色、多账户支持、设备清单或按设备的服务端撤销。`POST /auth/logout` 只会使请求浏览器的 cookie 过期；凭据轮换加 DSH 重启会使每个密码会话失效。
+- **密码模式预期 TLS 面向浏览器的部署**：`secureCookie` 默认是 `true`；将其设为 false 只改变 cookie 属性，不改变仅 loopback listener 或代理身份策略。密码认证决策定义预期的 Caddy 部署姿态。
 
 
 <a id="dev-note"></a>
