@@ -94,23 +94,30 @@ export const Config: z<ConnectionConfig> = z.transform(
     z.object({
       trustedHosts: z.array(String).default([]),
       cookieMaxAgeDays: z.natural().min(1).default(30),
-      passwordLogin: z.any(),
+      passwordLogin: z.any<unknown>(),
       maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
     }),
     // Retains undeclared config fields through transform's strict inner resolve.
-    z.any(),
+    z.any<object>(),
   ]),
-  (config) => {
-    if (config.passwordLogin === null) {
+  (config): ConnectionConfig => {
+    const { passwordLogin, ...baseConfig } = config
+    if (passwordLogin === null) {
       throw new z.ValidationError('must not be null', {
         path: ['passwordLogin'],
       })
     }
-    if (config.passwordLogin === undefined) return config
+    const resolvedConfig = {
+      ...baseConfig,
+      trustedHosts: config.trustedHosts ?? [],
+      cookieMaxAgeDays: config.cookieMaxAgeDays ?? 30,
+      maxRequestBodyBytes: config.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES,
+    }
+    if (passwordLogin === undefined) return resolvedConfig
     try {
       return {
-        ...config,
-        passwordLogin: PasswordLoginConfigSchema(config.passwordLogin),
+        ...resolvedConfig,
+        passwordLogin: PasswordLoginConfigSchema(passwordLogin as PasswordLoginConfig),
       }
     } catch {
       throw new z.ValidationError('invalid password login configuration', {

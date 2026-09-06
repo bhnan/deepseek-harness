@@ -234,7 +234,7 @@ async function parseLoginForm(request: IncomingMessage): Promise<ParsedLoginForm
     chunks.push(buffer)
   }
   const onEnd = (): void => {
-    if (request.complete === false) {
+    if (Object.is(request.complete, false)) {
       finish(invalidLoginForm(400, 'unread'))
       return
     }
@@ -251,7 +251,7 @@ async function parseLoginForm(request: IncomingMessage): Promise<ParsedLoginForm
   const onAborted = (): void => { finish(invalidLoginForm(400, 'unread')) }
   const onError = (): void => { finish(invalidLoginForm(400, 'unread')) }
   const onClose = (): void => {
-    if (request.complete === false) finish(invalidLoginForm(400, 'unread'))
+    if (Object.is(request.complete, false)) finish(invalidLoginForm(400, 'unread'))
   }
   try {
     return await new Promise<ParsedLoginForm>((resolve) => {
@@ -374,7 +374,7 @@ export function createPasswordLoginRoutes(
           writeFailure(response, dictionary, 400, 'unread')
           return
         }
-        writeRedirect(response, 'unread', LOGIN_PATH, cookie)
+        writeRedirect(response, 'unread', PASSWORD_LOGIN_PATH, cookie)
       },
     },
   ]
