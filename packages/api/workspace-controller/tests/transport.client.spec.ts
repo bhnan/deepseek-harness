@@ -31,6 +31,8 @@ import type {
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
   WorkspaceId,
+  WorkspaceUploadRequest,
+  WorkspaceUploadValue,
   WorkspaceValue,
   WorkspaceView,
 } from '../src/types.ts'
@@ -140,6 +142,10 @@ class ScriptedWorkspaceRemote implements WorkspaceRemote {
     throw new Error('unused')
   }
 
+  uploadFile(_request: WorkspaceUploadRequest): Promise<RemoteResult<WorkspaceUploadValue>> {
+    throw new Error('unused')
+  }
+
   async *follow(signal = new AbortController().signal): AsyncIterable<WorkspaceFollowFrame> {
     const generation = this.generations[this.calls++]
     if (generation === undefined) throw new Error('no scripted Workspace generation')
@@ -178,6 +184,14 @@ class CommandWorkspaceRemote implements WorkspaceRemote {
 
   readonly archiveSession = vi.fn<WorkspaceRemote['archiveSession']>(request => Promise.resolve(remoteOk({
     archivedSessionIds: [request.sessionId],
+  })))
+
+  readonly uploadFile = vi.fn<WorkspaceRemote['uploadFile']>(request => Promise.resolve(remoteOk({
+    path: `/work/${request.workspaceId}/uploads/${request.name}`,
+    name: request.name,
+    bytes: 0,
+    sha256: 'fake-sha256',
+    ...(request.mediaType === undefined ? {} : { mediaType: request.mediaType }),
   })))
 
   async *follow(_signal?: AbortSignal): AsyncIterable<WorkspaceFollowFrame> {}

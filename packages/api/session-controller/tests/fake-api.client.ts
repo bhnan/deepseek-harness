@@ -21,7 +21,11 @@ import type {
   SessionSelectModelValue,
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { WorkspaceRemote } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { WorkspaceFollowFrame } from '@deepseek-ai/dsh-api-workspace-controller/types'
+import type {
+  WorkspaceFollowFrame,
+  WorkspaceUploadRequest,
+  WorkspaceUploadValue,
+} from '@deepseek-ai/dsh-api-workspace-controller/types'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import {
   RemoteStream,
@@ -195,6 +199,15 @@ export class FakeApiClient {
   onWorkspaceArchiveSession: (payload: unknown) => Promise<RemoteResult<{ archivedSessionIds: SessionId[] }>> =
     payload => Promise.resolve(ok({ archivedSessionIds: [(payload as { sessionId: SessionId }).sessionId] }))
 
+  onWorkspaceUploadFile: (payload: WorkspaceUploadRequest) => Promise<RemoteResult<WorkspaceUploadValue>> =
+    payload => Promise.resolve(ok({
+      path: `/f/ws/uploads/${payload.name}`,
+      name: payload.name,
+      bytes: 0,
+      sha256: 'fake-sha256',
+      ...(payload.mediaType === undefined ? {} : { mediaType: payload.mediaType }),
+    }))
+
   /** Remote namespaces bound to this fake's programmable unary slots and stream pumps. */
   sessionRemotes(): RuntimeRemotes {
     return {
@@ -272,6 +285,11 @@ export class FakeApiClient {
           'workspace.archiveSession',
           payload,
           this.onWorkspaceArchiveSession(payload),
+        ),
+        uploadFile: payload => this.record(
+          'workspace.uploadFile',
+          payload,
+          this.onWorkspaceUploadFile(payload),
         ),
         follow: signal => this.openWorkspace(signal),
       },

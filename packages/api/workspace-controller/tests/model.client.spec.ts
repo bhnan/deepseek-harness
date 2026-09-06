@@ -14,6 +14,8 @@ import type {
   WorkspaceInsertSessionBeforeRequest,
   WorkspaceOrderValue,
   WorkspaceRenameRequest,
+  WorkspaceUploadRequest,
+  WorkspaceUploadValue,
   WorkspaceValue,
   WorkspaceId,
   WorkspaceView,
@@ -84,6 +86,14 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
     request: WorkspaceArchiveSessionRequest,
   ) => Promise<RemoteResult<WorkspaceArchiveValue>> = request =>
     Promise.resolve(remoteOk({ archivedSessionIds: [request.sessionId] }))
+  onUploadFile: (request: WorkspaceUploadRequest) => Promise<RemoteResult<WorkspaceUploadValue>> = request =>
+    Promise.resolve(remoteOk({
+      path: `/w/${request.workspaceId}/uploads/${request.name}`,
+      name: request.name,
+      bytes: 0,
+      sha256: 'fake-sha256',
+      ...(request.mediaType === undefined ? {} : { mediaType: request.mediaType }),
+    }))
 
   create(request: WorkspaceCreateRequest): Promise<RemoteResult<WorkspaceCreateValue>> {
     this.record('create', request)
@@ -113,6 +123,11 @@ class FakeWorkspaceRemote implements WorkspaceRemote {
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<RemoteResult<WorkspaceArchiveValue>> {
     this.record('archiveSession', request)
     return this.onArchiveSession(request)
+  }
+
+  uploadFile(request: WorkspaceUploadRequest): Promise<RemoteResult<WorkspaceUploadValue>> {
+    this.record('uploadFile', request)
+    return this.onUploadFile(request)
   }
 
   async *follow(_signal?: AbortSignal): AsyncGenerator<WorkspaceFollowFrame> {}
