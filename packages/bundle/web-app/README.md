@@ -51,7 +51,7 @@ The generated [Web App configuration catalog](../../../docs/config-catalog.md#de
 
 ### Password-login environment
 
-The Web profile reads these launch-environment variables to construct Connection's optional password-login configuration. It enables password mode only when both credential variables are present and nonempty; otherwise the existing token mode applies. Invalid values fail startup without revealing credentials.
+The Web profile reads these launch-environment variables to construct Connection's optional password-login configuration. Token mode applies only when `passwordLogin` is absent; with the shipped mapping, both credential variables must be unset for that. If either credential variable is supplied, both must be nonempty and valid or startup fails without revealing credentials.
 
 | Variable | Default | Meaning |
 |---|---:|---|
