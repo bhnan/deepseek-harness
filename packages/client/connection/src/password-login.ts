@@ -103,9 +103,38 @@ function escapeHtml(value: string): string {
   })
 }
 
+/**
+ * Self-contained style block for the login page: no external assets, so the
+ * unauthenticated page renders under any connectivity and leaks nothing about
+ * the deployment. DeepSeek brand blue for the accent; light and dark schemes.
+ */
+const LOGIN_PAGE_STYLE = ':root{color-scheme:light dark}*{box-sizing:border-box;margin:0}body{min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f6f9;color:#1c212b;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}main{width:100%;max-width:360px;background:#fff;border:1px solid #e6e8ee;border-radius:16px;padding:40px 36px;box-shadow:0 12px 36px rgba(15,23,42,.08)}h1{font-size:22px;font-weight:600;text-align:center;margin-bottom:26px}[role="alert"]{margin-bottom:18px;padding:10px 14px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:13px;line-height:1.6;text-align:center}label{display:block;margin:14px 2px 6px;font-size:13px;font-weight:500;color:#5b6472}input{width:100%;height:42px;padding:0 12px;font-size:15px;font-family:inherit;color:inherit;background:#fff;border:1px solid #d4d8e0;border-radius:10px;outline:none;transition:border-color .15s ease,box-shadow .15s ease}input:focus{border-color:#4d6bfe;box-shadow:0 0 0 3px rgba(77,107,254,.16)}button{width:100%;height:44px;margin-top:26px;font-size:15px;font-weight:600;font-family:inherit;color:#fff;background:#4d6bfe;border:0;border-radius:10px;cursor:pointer;transition:background .15s ease}button:hover{background:#3e5cf0}button:active{background:#3550d6}@media (prefers-color-scheme:dark){body{background:#0f1216;color:#e6eaf2}main{background:#171b22;border-color:#272d38;box-shadow:0 12px 36px rgba(0,0,0,.45)}[role="alert"]{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.35);color:#fca5a5}label{color:#98a2b3}input{background:#10141a;border-color:#313947}input:focus{border-color:#6579ff;box-shadow:0 0 0 3px rgba(101,121,255,.22)}}@media (max-width:400px){body{padding:16px}main{padding:32px 22px}}'
+
 function renderLoginPage(dictionary: LoginDictionary, failed: boolean): string {
   const failure = failed ? `<p role="alert">${escapeHtml(dictionary.failure)}</p>` : ''
-  return `<!doctype html><html lang="${escapeHtml(dictionary.language)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(dictionary.title)}</title></head><body><main><h1>${escapeHtml(dictionary.heading)}</h1>${failure}<form method="post" action="${escapeHtml(PASSWORD_LOGIN_PATH)}"><label for="username">${escapeHtml(dictionary.username)}</label><input id="username" name="username" autocomplete="username" required><label for="password">${escapeHtml(dictionary.password)}</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">${escapeHtml(dictionary.submit)}</button></form></main></body></html>`
+  return `<!doctype html>
+<html lang="${escapeHtml(dictionary.language)}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>${escapeHtml(dictionary.title)}</title>
+<style>${LOGIN_PAGE_STYLE}</style>
+</head>
+<body>
+<main>
+<h1>${escapeHtml(dictionary.heading)}</h1>
+${failure}
+<form method="post" action="${escapeHtml(PASSWORD_LOGIN_PATH)}">
+<label for="username">${escapeHtml(dictionary.username)}</label>
+<input id="username" name="username" autocomplete="username" required autofocus>
+<label for="password">${escapeHtml(dictionary.password)}</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required>
+<button type="submit">${escapeHtml(dictionary.submit)}</button>
+</form>
+</main>
+</body>
+</html>`
 }
 
 function responseHeaders(): Record<string, string> {
