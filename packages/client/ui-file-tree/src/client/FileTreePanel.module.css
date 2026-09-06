@@ -1,5 +1,7 @@
 .root { display:flex; flex-direction:column; min-height:0; overflow:hidden; border-top:1px solid var(--dsw-alias-line-divider); }
 .header { flex:none; display:flex; justify-content:space-between; align-items:center; padding:6px 8px; font-size:12px; font-weight:600; }
+.headerToggle { flex:1; min-width:0; display:flex; align-items:center; gap:4px; padding:2px 4px; border:0; border-radius:6px; background:transparent; color:inherit; font:inherit; font-weight:600; text-align:left; cursor:pointer; }
+.headerToggle:hover { background:var(--dsw-alias-interactive-bg-hover); }
 .refresh { border:0; background:transparent; color:inherit; cursor:pointer; }
 .tree { overflow:auto; min-height:0; padding-bottom:4px; }
 .row { display:flex; align-items:center; gap:4px; width:100%; min-height:24px; padding-top:2px; padding-right:6px; padding-bottom:2px; border:0; background:transparent; color:inherit; text-align:left; font-size:12px; cursor:pointer; }
