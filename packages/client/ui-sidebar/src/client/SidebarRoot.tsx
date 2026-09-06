@@ -121,6 +121,23 @@ export function SidebarRoot({
     }
   }, [pointerInside])
 
+  const mobileCollapsed = collapsed && width === 0
+  if (mobileCollapsed) {
+    return (
+      <div className={css.mobileToggle}>
+        <button
+          type="button"
+          className={css.mobileToggleButton}
+          aria-label={t('toggle.open')}
+          title={t('toggle.open')}
+          onClick={() => { toggleSidebar() }}
+        >
+          <IconPanelLeftOutline16 size={20} />
+        </button>
+      </div>
+    )
+  }
+
   const buildVersion = localBuildVersion()
 
   return (

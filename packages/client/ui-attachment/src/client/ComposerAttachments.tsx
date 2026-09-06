@@ -8,7 +8,8 @@ import type { AttachmentRailItem } from '../AttachmentRail.tsx'
 import { DropOverlay } from '../DropOverlay.tsx'
 import { FileCard } from '../FileCard.tsx'
 import { ImageLightbox } from '../ImageLightbox.tsx'
-import { attachmentRailLabels, dropOverlayLabels, fileCardLabels, lightboxLabels } from './labels.ts'
+import { FilePicker } from './FilePicker.tsx'
+import { attachmentRailLabels, dropOverlayLabels, fileCardLabels, filePickerLabels, lightboxLabels } from './labels.ts'
 import css from './ComposerAttachments.module.css'
 
 /** Rail item retaining its browser-owned attachment for callbacks. */
@@ -86,6 +87,9 @@ export function ComposerAttachments({
 
   return (
     <>
+      <div className={css.pickerRow}>
+        <FilePicker disabled={!canAcceptDrop} labels={filePickerLabels(t)} onFiles={onAddFiles} />
+      </div>
       {dragActive && (
         <DropOverlay
           disabled={!canAcceptDrop}

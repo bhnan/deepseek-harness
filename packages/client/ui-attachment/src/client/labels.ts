@@ -4,6 +4,7 @@ import type { DropOverlayLabels } from '../DropOverlay.tsx'
 import type { FileCardLabels } from '../FileCard.tsx'
 import type { ImageLightboxLabels } from '../ImageLightbox.tsx'
 import type { MessageImageLabels } from '../MessageImage.tsx'
+import type { FilePickerLabels } from './FilePicker.tsx'
 
 /**
  * Resolve original-image lightbox strings from the conversation namespace.
@@ -75,5 +76,17 @@ export function attachmentRailLabels(t: TranslateNS<'conversation'>): Attachment
     group: t('attachment.pending'),
     scrollLeft: t('attachment.scrollLeft'),
     scrollRight: t('attachment.scrollRight'),
+  }
+}
+
+/** Resolve the mobile-safe native file chooser labels. */
+export function filePickerLabels(t: TranslateNS<'conversation'>): FilePickerLabels {
+  return {
+    button: t('file.attach'),
+    dialog: t('file.attachDialog'),
+    chooseFile: t('file.chooseFile'),
+    choosePhotos: t('file.choosePhotos'),
+    cancel: t('file.cancel'),
+    uploading: t('file.uploading'),
   }
 }

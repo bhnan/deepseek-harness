@@ -783,7 +783,7 @@ describe('running and lock semantics', () => {
   })
 
   it('running continuable subagent keeps Send beside an independent Stop', () => {
-    const { button, interruptButton, textarea, sink, stop, view, slotCalls } = bench({
+    const { button, interruptButton, textarea, sink, stop, slotCalls } = bench({
       running: true,
       draft: '后续消息',
       subagent: {
@@ -798,8 +798,6 @@ describe('running and lock semantics', () => {
     expect(button.getAttribute('aria-label')).toBe('发送消息')
     expect(interruptButton).not.toBeNull()
     expect(textarea.getAttribute('aria-disabled')).not.toBe('true')
-    expect((view.getByLabelText('添加附件') as HTMLButtonElement).disabled).toBe(true)
-    expect(view.container.querySelector<HTMLInputElement>('input[type="file"]')?.disabled).toBe(true)
     expect(attachmentOwner(slotCalls).canAcceptDrop).toBe(false)
     fireEvent.click(button)
     expect(sink).toHaveBeenCalledWith('后续消息', [], 'queue', expect.any(AbortSignal))
@@ -812,9 +810,7 @@ describe('running and lock semantics', () => {
     ['active goal', { goal: { phase: 'active' as const, objective: 'inspect files' } }],
   ])('%s keeps ordinary generic-file intake enabled', (_name, projection) => {
     const added = vi.fn(() => null)
-    const { view, slotCalls } = bench({ ...projection, addFiles: added })
-    expect((view.getByLabelText('添加附件') as HTMLButtonElement).disabled).toBe(false)
-    expect(view.container.querySelector<HTMLInputElement>('input[type="file"]')?.disabled).toBe(false)
+    const { slotCalls } = bench({ ...projection, addFiles: added })
     expect(attachmentOwner(slotCalls).canAcceptDrop).toBe(true)
   })
 

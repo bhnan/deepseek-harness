@@ -7,8 +7,6 @@ import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import { ComposerAttachments } from './ComposerAttachments.tsx'
 import { MessageImages } from './MessageImages.tsx'
-export { FilePicker } from './FilePicker.tsx'
-export type { FilePickerProps } from './FilePicker.tsx'
 
 /** Slot registry required by this presentation plugin. */
 export const inject = ['slots']
