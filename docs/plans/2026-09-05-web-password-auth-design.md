@@ -12,19 +12,19 @@ This increment does not add user registration, multiple accounts, roles, device 
 
 The Web bundle reads `DSH_WEB_AUTH_USERNAME` and `DSH_WEB_AUTH_PASSWORD` from its launch environment. Both values must be present and non-empty to enable password login; supplying only one fails during startup. The password never enters a URL, browser bootstrap data, log line, session event, or normal DSH credential file.
 
-Password-login configuration includes `sessionMaxAgeDays`, with a default of seven and a minimum of seven, `failureDelayMs` with a default of 500 and a maximum of 10,000, and `secureCookie`, which defaults to enabled but is configurable. The bundle exposes those deployment choices through environment expressions so a systemd unit or other process supervisor can supply them without source edits. The regular token-based browser-session lifetime remains unchanged when password login is disabled.
+Password-login configuration includes `sessionMaxAgeDays`, with a default of seven and a minimum of seven, plus a secure-cookie setting that defaults to enabled. The bundle exposes those deployment choices through environment expressions so a systemd unit or other process supervisor can supply them without source edits. The regular token-based browser-session lifetime remains unchanged when password login is disabled.
 
 ## Request lifecycle
 
-When password login is enabled, `dsh web` prints a clean canonical URL. A browser without a valid session that requests the frontend index receives 401 and can request the fixed `/auth/login` route. The exact login route serves a small localized HTML form and accepts only its form submission. A valid username and password mint the existing browser-session cookie and redirect to `/`; an invalid submission receives the same generic failure response for either field after a bounded delay. The route checks the same Host and Origin trust rules as the Web API before it reads a password.
+When password login is enabled, `dsh web` prints a clean canonical URL. A browser without a valid session that requests the frontend index receives a redirect to `/auth/login`. The exact login route serves a small localized HTML form and accepts only its form submission. A valid username and password mint the existing browser-session cookie and redirect to `/`; an invalid submission receives the same generic failure response for either field after a bounded delay. The route checks the same Host and Origin trust rules as the Web API before it reads a password.
 
 The browser automatically sends the resulting cookie to frontend-index, `/api`, and WebSocket requests. The existing Connection request check continues to reject every protected API and upgrade request without that cookie. A `POST /auth/logout` expires only the cookie presented by that browser and redirects to the login page.
 
 ## Cookie and session model
 
-Password login reuses the persistent HMAC signing secret already owned by `BrowserAuth`. Its cookie stays host-only, `Path=/`, `HttpOnly`, and `SameSite=Strict`, carries `Secure` when `secureCookie` is enabled, and remains bound to the request authority and absolute expiry. Each successful browser login mints a separate cookie; no server-side single-session map means a second device cannot invalidate the first one.
+Password login reuses the persistent HMAC signing secret already owned by `BrowserAuth`. Its cookie stays host-only, `HttpOnly`, `Secure`, and `SameSite=Strict`, and its payload remains bound to the request authority and absolute expiry. Each successful browser login mints a separate cookie; no server-side single-session map means a second device cannot invalidate the first one.
 
-The cookie payload also carries a keyed revision derived from the active username and password. On every request, password mode compares that revision with the active configuration. Restarting DSH with unchanged environment values preserves valid sessions through the durable signing secret; restarting with either changed credential invalidates every existing password-login session. Password-mode cookies and launch-token cookies remain distinguishable so a token-only session cannot satisfy an enabled password-login deployment.
+The cookie payload also carries a keyed revision derived from the active username and password. On every request, password mode compares that revision with the active configuration. Restarting DSH with unchanged environment values preserves valid sessions through the durable signing secret; changing either credential invalidates every existing password-login session. Password-mode cookies and launch-token cookies remain distinguishable so a token-only session cannot satisfy an enabled password-login deployment.
 
 ## Security and deployment
 

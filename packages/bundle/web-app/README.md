@@ -45,7 +45,7 @@ Most users never set these; the command-line flags feed the four settings below 
 | `openBrowser` | `true` | Open the default browser after startup; SSH launches suppress it |
 | `printUrl` | `true` | Print the `dsh web:` URL line at startup |
 | `surfaceContext` | `true` | Give the agent GUI-orientation context and expose `DSH_WEB_URL` to its shell commands |
-| `trustedHosts` | `[]` | Extra hosts allowed to reach the GUI from the network |
+| `trustedHosts` | `[]` | Extra accepted public authorities for the Host/Origin browser-trust fence; does not change the loopback listener |
 
 The generated [Web App configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web-app) and [Connection configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-client-connection) are the exhaustive sources for accepted Cordis configuration fields and their JSDoc.
 

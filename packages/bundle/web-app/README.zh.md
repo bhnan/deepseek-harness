@@ -45,7 +45,7 @@ dsh --profile web --no-open --port 8080
 | `openBrowser` | `true` | 启动后用默认浏览器打开；SSH 启动会抑制它 |
 | `printUrl` | `true` | 启动时打印 `dsh web:` URL 行 |
 | `surfaceContext` | `true` | 给 agent（智能体）提供 GUI 定位上下文，并把 `DSH_WEB_URL` 暴露给其 shell 命令 |
-| `trustedHosts` | `[]` | 允许从网络访问 GUI 的额外主机 |
+| `trustedHosts` | `[]` | 供 Host/Origin 浏览器信任栅栏接受的额外公开 authority；不改变 loopback listener |
 
 生成的 [Web App 配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web-app)和 [Connection 配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-client-connection)是受支持 Cordis 配置字段及其 JSDoc 的穷尽式真源。
 

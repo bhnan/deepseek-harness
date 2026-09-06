@@ -34,7 +34,7 @@ kind: "package-reference"
 
 每个 Host RPC 方法和 WebSocket stream 都要求同一个浏览器会话，不存在按方法区分的 loopback 层。`passwordLogin` 缺失时，token 模式生成一个随机进程 token。`dsh-web-app` 打印并打开带 `?token=...` 的根 URL；`frontend-static` 只在 `GET /` 接受该 token，写入绑定 authority 的签名 cookie，再重定向到干净的 `/`。HTTP 载体不在这次根路径交换之外接受 query token，也不接受 Authorization header token。token cookie 通过 `cookieMaxAgeDays` 的默认值拥有 30 天绝对有效期，并为随附的 loopback HTTP 应用刻意不设置 `Secure`。
 
-`passwordLogin` 存在时，它选择一个由部署管理的账户并关闭 token 接受。Web 应用打印并打开干净的根 URL。`GET /auth/login` 提供由 `Accept-Language` 选择的 Host 所有英文或中文表单；`POST /auth/login` 在表单凭据有效后签发会话，精确的 `POST /auth/logout` 只使请求浏览器在该 authority 上的 cookie 过期。登录页绝不包含已配置的凭据值。没有有效会话的受保护 index 请求返回 401，可信但没有有效会话的 API 请求也一样；非 index 静态资产仍然公开。
+`passwordLogin` 存在时，它选择一个由部署管理的账户并关闭 token 接受。Web 应用打印并打开干净的根 URL。`GET /auth/login` 提供由 `Accept-Language` 选择、由 Host 直接提供的英文或中文表单；`POST /auth/login` 在表单凭据有效后签发会话，精确的 `POST /auth/logout` 只使请求浏览器在该 authority 上的 cookie 过期。登录页绝不包含已配置的凭据值。没有有效会话的受保护 index 请求返回 401，可信但没有有效会话的 API 请求也一样；非 index 静态资产仍然公开。
 
 | `passwordLogin` 字段 | 默认值 | 语义 |
 |---|---:|---|
