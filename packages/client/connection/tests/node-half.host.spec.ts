@@ -399,6 +399,13 @@ describe('connection node half', () => {
           'sec-fetch-site': 'cross-site',
         }],
         [LOGOUT_PATH, 'POST', { host: 'harness.example', origin: 'http://other.example' }],
+        [LOGOUT_PATH, 'POST', {
+          host: 'harness.example',
+          origin: 'null',
+          'sec-fetch-site': 'same-origin',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-dest': 'document',
+        }],
       ] as const) {
         const unread = unreadRequest(headers, path, method)
         const response = fakeResponse()
@@ -407,6 +414,35 @@ describe('connection node half', () => {
         expect(response.state.headers?.['set-cookie']).toBeUndefined()
         expect(unread.reads()).toBe(0)
       }
+    } finally {
+      await dispose()
+    }
+  })
+
+  it('accepts a browser-native same-origin form navigation for password login', async () => {
+    const { routes, dispose } = await mounted({
+      trustedHosts: ['harness.example'],
+      passwordLogin: PASSWORD_LOGIN,
+    })
+    const login = namedRoute(routes, LOGIN_PATH)
+    try {
+      const submitted = fakeResponse()
+      await login.handler(fakeFormPost({
+        host: 'harness.example',
+        origin: 'null',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document',
+      }, LOGIN_PATH, new URLSearchParams({
+        username: PASSWORD_LOGIN.username,
+        password: PASSWORD_LOGIN.password,
+      }).toString()), submitted.response)
+
+      expect(submitted.state).toMatchObject({
+        status: 303,
+        headers: { location: '/' },
+      })
+      expect(submitted.state.headers?.['set-cookie']).toContain('HttpOnly')
     } finally {
       await dispose()
     }

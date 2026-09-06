@@ -318,8 +318,12 @@ export function createPasswordLoginRoutes(
   trustedHosts: readonly string[],
   failureDelayMs: number,
 ): readonly WebRoute[] {
-  const trusted = (request: IncomingMessage, response: ServerResponse): boolean => {
-    if (isTrustedApiRequest(request, trustedHosts)) return true
+  const trusted = (
+    request: IncomingMessage,
+    response: ServerResponse,
+    allowSameOriginOpaqueNavigation = false,
+  ): boolean => {
+    if (isTrustedApiRequest(request, trustedHosts, { allowSameOriginOpaqueNavigation })) return true
     writeForbidden(response)
     return false
   }
@@ -329,7 +333,7 @@ export function createPasswordLoginRoutes(
       path: PASSWORD_LOGIN_PATH,
       handler: async (request, response) => {
         // The Host/Origin fence runs before a form body can be consumed.
-        if (!trusted(request, response)) return
+        if (!trusted(request, response, request.method === 'POST')) return
         const dictionary = dictionaryFor(request)
         if (request.method === 'GET') {
           writeLoginPage(response, dictionary)

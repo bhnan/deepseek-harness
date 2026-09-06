@@ -58,6 +58,35 @@ describe('isTrustedApiRequest', () => {
     expect(isTrustedApiRequest(request({ host: '127.0.0.1:3080', origin: 'null' }), [])).toBe(false)
   })
 
+  it('recognizes an opaque native form navigation only through an explicit same-origin option', () => {
+    const nativeNavigation = {
+      host: 'harness.example',
+      origin: 'null',
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-dest': 'document',
+    }
+    expect(isTrustedApiRequest(request(nativeNavigation), ['harness.example'])).toBe(false)
+    expect(isTrustedApiRequest(
+      request(nativeNavigation),
+      ['harness.example'],
+      { allowSameOriginOpaqueNavigation: true },
+    )).toBe(true)
+
+    for (const headers of [
+      { ...nativeNavigation, 'sec-fetch-site': 'same-site' },
+      { ...nativeNavigation, 'sec-fetch-mode': 'cors' },
+      { ...nativeNavigation, 'sec-fetch-dest': 'iframe' },
+      { ...nativeNavigation, 'sec-fetch-site': 'cross-site' },
+    ]) {
+      expect(isTrustedApiRequest(
+        request(headers),
+        ['harness.example'],
+        { allowSameOriginOpaqueNavigation: true },
+      )).toBe(false)
+    }
+  })
+
   it('accepts a same-origin browser request, with or without an Origin header', () => {
     expect(isTrustedApiRequest(request({
       host: 'localhost:3080',

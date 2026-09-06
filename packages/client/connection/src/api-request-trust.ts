@@ -1,5 +1,5 @@
 /**
- * Browser-trust fence for every /api request. Defends the two confused-deputy
+ * Browser-trust fence for Host API and password routes. Defends the two confused-deputy
  * paths a browser opens against a local HTTP API — DNS rebinding (Host names
  * the attacker's domain while the socket reaches this server) and cross-site
  * requests fired from a malicious page. The Host fence binds every request,
@@ -15,6 +15,12 @@
 
 import { isLoopbackHostname } from './loopback-hostname.ts'
 import type { ConnectionTrustRequest } from './rpc.ts'
+
+/** Narrow exception owned by a route that accepts browser-native form navigation. */
+export interface ApiRequestTrustOptions {
+  /** Permit `Origin: null` only with the exact same-origin document-navigation Fetch Metadata. */
+  readonly allowSameOriginOpaqueNavigation?: boolean
+}
 
 function header(headers: ConnectionTrustRequest['headers'], name: string): string | undefined {
   if (headers instanceof Headers) return headers.get(name) ?? undefined
@@ -86,9 +92,14 @@ function isTrustedAuthority(hostUrl: URL, trustedHosts: readonly string[]): bool
  * Decide whether one /api request may reach the RPC bridge.
  * @param request - Node HTTP or Fetch request facts (headers).
  * @param trustedHosts - non-loopback authorities this deployment serves: exact `host:port`, or port-less `host` matching any port.
+ * @param options - route-specific browser-navigation exception; omitted callers keep opaque Origins untrusted.
  * @returns true when the Host is ours (loopback or trusted) and any attached browser markers are same-origin.
  */
-export function isTrustedApiRequest(request: ConnectionTrustRequest, trustedHosts: readonly string[]): boolean {
+export function isTrustedApiRequest(
+  request: ConnectionTrustRequest,
+  trustedHosts: readonly string[],
+  options: ApiRequestTrustOptions = {},
+): boolean {
   // Host fence (DNS-rebinding defense), applied to every request: the browser
   // fills Host from the URL it believes it is talking to, so a rebound page
   // carries the attacker's domain here even though the socket lands on this
@@ -107,9 +118,15 @@ export function isTrustedApiRequest(request: ConnectionTrustRequest, trustedHost
   // Origin fence: when a browser attaches an Origin it must be exactly this
   // authority (compared through the same normalization as the Host). Absent
   // Origin is fine — the Host fence above already bound the request. The
-  // literal "null" (sandboxed iframes, file: pages) is an opaque origin, refused.
+  // literal "null" (sandboxed iframes, file: pages) is an opaque origin,
+  // except for the exact same-origin document navigation a password form uses.
   const origin = header(request.headers, 'origin')
   if (origin === undefined) return true
+  if (origin === 'null' && options.allowSameOriginOpaqueNavigation === true) {
+    return header(request.headers, 'sec-fetch-site') === 'same-origin'
+      && header(request.headers, 'sec-fetch-mode') === 'navigate'
+      && header(request.headers, 'sec-fetch-dest') === 'document'
+  }
   try {
     return new URL(origin).host === hostUrl.host
   } catch {
