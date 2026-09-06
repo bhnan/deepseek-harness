@@ -18,6 +18,7 @@ export function FileTreePanel({ wide, useSessions, useWorkspaces, listLevel, rea
     () => workspaces.find(workspace => current !== undefined && workspace.sessionIds.includes(current))?.path ?? cwd,
     [current, cwd, workspaces],
   )
+  const [open, setOpen] = useState(true)
   const [levels, setLevels] = useState<Record<string, Level>>({})
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -137,7 +138,18 @@ export function FileTreePanel({ wide, useSessions, useWorkspaces, listLevel, rea
   return (
     <div className={css.root}>
       <div className={css.header}>
-        <span>{t('section.title')}</span>
+        <button
+          type="button"
+          className={css.headerToggle}
+          aria-label={open ? t('collapse') : t('expand')}
+          aria-expanded={open}
+          onClick={() => { setOpen(value => !value) }}
+        >
+          <span className={clsx(css.chevron, open && css.open)}>
+            <IconChevronRightOutline14 size={12} />
+          </span>
+          <span>{t('section.title')}</span>
+        </button>
         <button
           className={css.refresh}
           onClick={() => {
@@ -150,7 +162,7 @@ export function FileTreePanel({ wide, useSessions, useWorkspaces, listLevel, rea
           <IconRefreshOutline14 size={13} />
         </button>
       </div>
-      <div className={css.tree}>{render(root, 0)}</div>
+      {open && <div className={css.tree}>{render(root, 0)}</div>}
       <Modal
         open={preview !== null}
         onClose={() => { setPreview(null) }}
