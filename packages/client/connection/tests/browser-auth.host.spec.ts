@@ -194,6 +194,52 @@ describe('BrowserAuth', () => {
     expect(passwordAuth.isAuthenticated(request('/', 'harness.example', { cookie: tokenCookie }))).toBe(false)
   })
 
+  it('redirects unauthenticated password-mode GET index URLs to the credential-free login route', async () => {
+    const auth = await createAuth(new RecordCredentials(), 30, {}, PASSWORD_LOGIN)
+
+    for (const url of [
+      '/?token=stale&source=old-bookmark',
+      '/index.html?token=stale&source=old-bookmark',
+    ]) {
+      const redirected = response()
+      expect(auth.authorizeIndex(request(url), redirected.value)).toBe(false)
+      expect(redirected.state).toEqual({
+        status: 303,
+        headers: {
+          'cache-control': 'no-store',
+          location: '/auth/login',
+          'referrer-policy': 'no-referrer',
+        },
+      })
+    }
+
+    const session = auth.mintPasswordSession(request('/', '127.0.0.1:3080'))
+    if (session === undefined) throw new Error('password login did not mint a session')
+    const allowed = response()
+    expect(auth.authorizeIndex(request('/index.html', '127.0.0.1:3080', {
+      cookie: session.split(';', 1)[0]!,
+    }), allowed.value)).toBe(true)
+    expect(allowed.state).toEqual({})
+
+    for (const candidate of [
+      request('/', '127.0.0.1:3080', { method: 'HEAD' }),
+      request('/asset.js'),
+    ]) {
+      const denied = response()
+      expect(auth.authorizeIndex(candidate, denied.value)).toBe(false)
+      expect(denied.state).toEqual({
+        status: 401,
+        headers: {
+          'cache-control': 'no-store',
+          'content-type': 'text/plain; charset=utf-8',
+        },
+        ...candidate.method === 'HEAD' ? {} : {
+          body: 'dsh web authentication required; reopen the URL printed by dsh web.\n',
+        },
+      })
+    }
+  })
+
   it('mints one process token and a persistent authority-bound cookie', async () => {
     const store = new RecordCredentials()
     const processOwner = {}

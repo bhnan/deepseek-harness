@@ -184,7 +184,7 @@ export interface HostConnectionHandle {
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
 
   /**
-   * Authenticate one frontend index request, owning a token redirect or 401.
+   * Authenticate one frontend index request, owning a selected-login redirect or 401.
    * @param request - root or configured-index HTTP request.
    * @param response - response owned when the result is false.
    * @returns true only when the frontend may serve index.html.
@@ -192,7 +192,7 @@ export interface HostConnectionHandle {
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
 
   /**
-   * Add the fresh process token to an ordinary Web application URL.
+   * Select a password-mode clean root or add a fresh process token to an ordinary Web application URL.
    * @param baseUrl - clean canonical browser origin.
    * @returns root URL accepted by {@link authorizeIndex} for initial login.
    */

@@ -99,12 +99,12 @@ export class HostConnectionService extends Service implements HostConnectionHand
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
-  /** Authenticate an index request through the process-token exchange or cookie. */
+  /** Authenticate an index request through the selected browser-login flow or cookie. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
     return this.browserAuth.authorizeIndex(request, response)
   }
 
-  /** Add this process's launch token to the clean application URL. */
+  /** Select this process's browser-login URL from the clean application URL. */
   authenticatedUrl(baseUrl: string): string {
     return this.browserAuth.authenticatedUrl(baseUrl)
   }

@@ -8,6 +8,7 @@ import type {
   ConnectionIndexResponse,
   ConnectionTrustRequest,
 } from './rpc.ts'
+import { PASSWORD_LOGIN_PATH } from './password-login.ts'
 import type { PasswordLoginConfig } from './password-login.ts'
 
 const AUTH_RECORD_KEY = credentialKey('client-connection', 'browser-session')
@@ -345,9 +346,10 @@ export class BrowserAuth {
 
   /**
    * Authenticate an index request. Launch-token mode exchanges a valid root
-   * query token for a cookie and redirects to clean `/`; either mode accepts
-   * its valid cookie for index serving; every other request receives the same
-   * minimal 401 response.
+   * query token for a cookie and redirects to clean `/`; password mode redirects
+   * unauthenticated GET `/` and `/index.html` requests to its credential-free
+   * login route. Either mode accepts its valid cookie for index serving; every
+   * other request receives the minimal 401 response.
    * @param req - incoming root or configured-index request.
    * @param res - response owned when this method returns false.
    * @returns true only when the caller may serve index.html.
@@ -391,7 +393,18 @@ export class BrowserAuth {
       this.writeUnauthorized(req, res)
       return false
     }
-    if (this.isAuthenticated(req)) return true
+    const authenticated = this.isAuthenticated(req)
+    if (this.passwordLogin !== undefined && req.method === 'GET'
+      && (url.pathname === '/' || url.pathname === '/index.html') && !authenticated) {
+      res.writeHead(303, {
+        'cache-control': 'no-store',
+        location: PASSWORD_LOGIN_PATH,
+        'referrer-policy': 'no-referrer',
+      })
+      res.end()
+      return false
+    }
+    if (authenticated) return true
     this.writeUnauthorized(req, res)
     return false
   }

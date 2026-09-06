@@ -6,7 +6,8 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import type { BrowserAuth } from './browser-auth.ts'
 
-const LOGIN_PATH = '/auth/login'
+/** Exact Host route that renders and accepts the password-login form. */
+export const PASSWORD_LOGIN_PATH = '/auth/login'
 const LOGOUT_PATH = '/auth/logout'
 const FORM_MEDIA_TYPE = 'application/x-www-form-urlencoded'
 const MAX_FORM_BYTES = 8 * 1024
@@ -104,7 +105,7 @@ function escapeHtml(value: string): string {
 
 function renderLoginPage(dictionary: LoginDictionary, failed: boolean): string {
   const failure = failed ? `<p role="alert">${escapeHtml(dictionary.failure)}</p>` : ''
-  return `<!doctype html><html lang="${escapeHtml(dictionary.language)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(dictionary.title)}</title></head><body><main><h1>${escapeHtml(dictionary.heading)}</h1>${failure}<form method="post" action="${escapeHtml(LOGIN_PATH)}"><label for="username">${escapeHtml(dictionary.username)}</label><input id="username" name="username" autocomplete="username" required><label for="password">${escapeHtml(dictionary.password)}</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">${escapeHtml(dictionary.submit)}</button></form></main></body></html>`
+  return `<!doctype html><html lang="${escapeHtml(dictionary.language)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(dictionary.title)}</title></head><body><main><h1>${escapeHtml(dictionary.heading)}</h1>${failure}<form method="post" action="${escapeHtml(PASSWORD_LOGIN_PATH)}"><label for="username">${escapeHtml(dictionary.username)}</label><input id="username" name="username" autocomplete="username" required><label for="password">${escapeHtml(dictionary.password)}</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">${escapeHtml(dictionary.submit)}</button></form></main></body></html>`
 }
 
 function responseHeaders(): Record<string, string> {
@@ -325,7 +326,7 @@ export function createPasswordLoginRoutes(
   return [
     {
       kind: 'exact',
-      path: LOGIN_PATH,
+      path: PASSWORD_LOGIN_PATH,
       handler: async (request, response) => {
         // The Host/Origin fence runs before a form body can be consumed.
         if (!trusted(request, response)) return
