@@ -12,3 +12,13 @@
 .hint { padding-top:4px; padding-bottom:4px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); font-size:11px; text-align:left; }
 .preview { max-height:60vh; max-width:70vw; overflow:auto; white-space:pre-wrap; }
 .image { max-width:70vw; max-height:60vh; object-fit:contain; }
+
+.filerow { display:flex; align-items:center; }
+.filerow .row { flex:1; min-width:0; padding-left:0; }
+.download { flex:none; border:0; background:transparent; color:inherit; opacity:.6; font-size:12px; padding:4px 6px; cursor:pointer; }
+.download:hover { opacity:1; background:var(--dsw-alias-interactive-bg-hover); border-radius:6px; }
+.download:disabled { opacity:.3; cursor:default; }
+.previewActions { display:flex; gap:8px; flex-wrap:wrap; }
+.previewActions button { padding:4px 10px; border:1px solid var(--dsw-alias-line-divider); border-radius:6px; background:transparent; color:inherit; font:inherit; font-size:12px; cursor:pointer; }
+.previewActions button:disabled { opacity:.5; cursor:default; }
+.downloadBtn:hover, .openBtn:hover { background:var(--dsw-alias-interactive-bg-hover); }

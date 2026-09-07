@@ -57,6 +57,15 @@ export type WorkspaceFilePreview =
     readonly truncated: false
   }
 
+/** One server-bounded download payload for a regular Host file. */
+export type WorkspaceFileDownload = {
+  readonly path: string
+  readonly size: number
+  /** Base64 of the file bytes; empty only when the file itself is empty. */
+  readonly content: string
+  readonly truncated: boolean
+}
+
 /** One durable Workspace projected for browser consumers. */
 export interface WorkspaceView {
   readonly workspaceId: WorkspaceId

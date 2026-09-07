@@ -1,5 +1,5 @@
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { WorkspaceFileLevel, WorkspaceFilePreview } from '@deepseek-ai/dsh-api-workspace-controller/types'
+import type { WorkspaceFileDownload, WorkspaceFileLevel, WorkspaceFilePreview } from '@deepseek-ai/dsh-api-workspace-controller/types'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -12,6 +12,8 @@ export type FileTreeInjected = {
   readFile: (path: string, signal: AbortSignal) => Promise<WorkspaceFilePreview>
   /** Ask the Host to open a selected path with its system handler. */
   openPath: (path: string) => void
+  /** Fetch one bounded regular file as a base64 download payload. */
+  downloadFile: (path: string, signal: AbortSignal) => Promise<WorkspaceFileDownload>
 }
 
 /** Complete slot, locale, and injected props consumed by `FileTreePanel`. */

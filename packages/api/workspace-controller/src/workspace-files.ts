@@ -4,12 +4,14 @@ import { open, opendir, stat } from 'node:fs/promises'
 import { extname, posix, resolve, win32 } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import type { WorkspaceFileEntry, WorkspaceFileLevel, WorkspaceFilePreview } from './types.ts'
+import type { WorkspaceFileDownload, WorkspaceFileEntry, WorkspaceFileLevel, WorkspaceFilePreview } from './types.ts'
 
 /** Maximum UTF-8 text bytes returned for one in-app preview. */
 const MAX_TEXT_BYTES = 256 * 1024
 /** Maximum whole-image bytes returned for one in-app preview. */
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+/** Maximum whole-file bytes returned for one download payload. */
+const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
 /** Complete-result bound for either sibling group in one tree level. */
 const MAX_LIST_ENTRIES = 1000
 
@@ -147,6 +149,34 @@ export class WorkspaceFilesController extends TypertRemoteService {
       await handle?.close()
     }
   }
+
+  @Remote('download')
+  async download(path: string, signal: AbortSignal): Promise<WorkspaceFileDownload> {
+    if (!fullyQualified(path)) throw unreadable(path, 'path is not fully qualified', 'download')
+    const target = resolve(path)
+    signal.throwIfAborted()
+    let handle: Awaited<ReturnType<typeof open>> | undefined
+    try {
+      handle = await open(target, 'r')
+      const details = await handle.stat()
+      if (!details.isFile()) throw new Error('path is not a regular file')
+      if (details.size > MAX_DOWNLOAD_BYTES) throw new Error(`file exceeds the ${MAX_DOWNLOAD_BYTES} byte download limit`)
+      const buffer = Buffer.alloc(details.size)
+      const { bytesRead } = await handle.read(buffer, 0, details.size, 0)
+      signal.throwIfAborted()
+      return {
+        path: target,
+        size: details.size,
+        content: buffer.subarray(0, bytesRead).toString('base64'),
+        truncated: details.size > bytesRead,
+      }
+    } catch (error: unknown) {
+      if (signal.aborted) throw new RemoteError('gateway/cancelled', 'workspace file download was aborted', {})
+      throw unreadable(target, error instanceof Error ? error.message : String(error), 'download', error)
+    } finally {
+      await handle?.close()
+    }
+  }
 }
 
 function compareEntry(a: WorkspaceFileEntry, b: WorkspaceFileEntry): number {
@@ -171,7 +201,7 @@ function boundedInsert(entries: WorkspaceFileEntry[], entry: WorkspaceFileEntry)
   return true
 }
 
-function unreadable(path: string, reason: string, operation: 'list' | 'read', cause?: unknown): RemoteError {
+function unreadable(path: string, reason: string, operation: 'list' | 'read' | 'download', cause?: unknown): RemoteError {
   return new RemoteError(
     'workspace-files/unreadable',
     `cannot ${operation} workspace files at ${path}: ${reason}`,
