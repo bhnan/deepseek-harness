@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -111,4 +111,94 @@ describe('platform installer manifests', () => {
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe('platform installer with prebuilt runtime', () => {
+  it('ships runtime.tar.gz, a tar-extracting postinstall, and leaves the entry package untouched', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-installer-runtime-'))
+    roots.push(root)
+    const dsh = mkdtempSync(join(root, 'dsh-'))
+    const vendor = mkdtempSync(join(root, 'vendor-'))
+    const landlock = mkdtempSync(join(root, 'landlock-'))
+    packFixture(dsh, '@deepseek-ai/dsh', '0.1.1-rc.2')
+    packFixture(vendor, '@deepseek-ai/cordis', '4.0.0')
+    packFixture(landlock, '@deepseek-ai/node-addon-landlock-run', '0.1.1')
+
+    // 预构建的 runtime bundle: 一个装着 node_modules 的 tar.gz（用真实 tar 打包 fixture）。
+    const runtimeDir = join(root, 'runtime-src')
+    mkdirSync(join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'lib'), { recursive: true })
+    writeFileSync(join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'), 'export {}\n')
+    const runtimeTarball = join(root, 'runtime.tar.gz')
+    execFileSync('tar', ['-czf', runtimeTarball, '-C', runtimeDir, 'node_modules'])
+
+    assemblePlatformInstaller({
+      namespace: 'bhnan',
+      version: installerVersion,
+      sourceVersion,
+      dsh,
+      vendor,
+      landlock,
+      out: join(root, 'out'),
+      runtimeTarballs: { 'macos-arm64': runtimeTarball },
+    })
+
+    const macos = join(root, 'out', 'macos-arm64')
+    expect(existsSync(join(macos, 'runtime.tar.gz'))).toBe(true)
+    const manifest = JSON.parse(readFileSync(join(macos, 'package.json'), 'utf8'))
+    expect(manifest.files).toContain('runtime.tar.gz')
+
+    const postinstall = readFileSync(join(macos, 'scripts', 'postinstall.mjs'), 'utf8')
+    expect(postinstall).toContain("join(packageRoot, 'runtime.tar.gz')")
+    expect(postinstall).toContain("'-xzf'")
+
+    // linux 侧未提供 runtime tarball → 保持原 npm install 行为。
+    const linuxPostinstall = readFileSync(join(root, 'out', 'linux-x64', 'scripts', 'postinstall.mjs'), 'utf8')
+    expect(linuxPostinstall).toContain("'install', '--prefix', runtime")
+    const linuxManifest = JSON.parse(readFileSync(join(root, 'out', 'linux-x64', 'package.json'), 'utf8'))
+    expect(linuxManifest.files).not.toContain('runtime.tar.gz')
+
+    const entry = JSON.parse(readFileSync(join(root, 'out', 'entry', 'package.json'), 'utf8'))
+    expect(entry.files).toEqual(['bin', 'README.md'])
+  })
+
+  it('postinstall extracts the prebuilt bundle instead of running npm', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-installer-runtime-'))
+    roots.push(root)
+    const dsh = mkdtempSync(join(root, 'dsh-'))
+    const vendor = mkdtempSync(join(root, 'vendor-'))
+    const landlock = mkdtempSync(join(root, 'landlock-'))
+    packFixture(dsh, '@deepseek-ai/dsh', '0.1.1-rc.2')
+    packFixture(vendor, '@deepseek-ai/cordis', '4.0.0')
+    packFixture(landlock, '@deepseek-ai/node-addon-landlock-run', '0.1.1')
+
+    const runtimeDir = join(root, 'runtime-src')
+    mkdirSync(join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'lib'), { recursive: true })
+    writeFileSync(join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'), 'export {}\n')
+    const runtimeTarball = join(root, 'runtime.tar.gz')
+    execFileSync('tar', ['-czf', runtimeTarball, '-C', runtimeDir, 'node_modules'])
+
+    assemblePlatformInstaller({
+      namespace: 'bhnan',
+      version: installerVersion,
+      sourceVersion,
+      dsh,
+      vendor,
+      landlock,
+      out: join(root, 'out'),
+      runtimeTarballs: { 'macos-arm64': runtimeTarball },
+    })
+
+    // 在真实临时目录里执行生成的 postinstall（等价于用户机器 npm install 时的行为）。
+    const stage = mkdtempSync(join(tmpdir(), 'dsh-installer-stage-'))
+    roots.push(stage)
+    execFileSync('cp', ['-a', `${join(root, 'out', 'macos-arm64')}/.`, stage])
+    execFileSync('node', [join(stage, 'scripts', 'postinstall.mjs')])
+
+    expect(existsSync(join(stage, 'runtime', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))).toBe(true)
+    expect(existsSync(join(stage, 'runtime', '.runtime-stamp'))).toBe(true)
+
+    // 幂等: 重复执行直接跳过（stamp 命中），不重复解压也不报错。
+    execFileSync('node', [join(stage, 'scripts', 'postinstall.mjs')])
+    expect(existsSync(join(stage, 'runtime', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))).toBe(true)
+  })
 })

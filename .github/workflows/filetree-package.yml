@@ -57,13 +57,20 @@ jobs:
           pnpm run release:pack --family vendor --out dist/npm-vendor
           pnpm --dir native/landlock-run run build:ts
           pnpm --dir native/landlock-run/packages/entry pack --pack-destination "$PWD/dist/npm-landlock"
+      - name: Prebuild runtime bundle (users extract instead of running npm)
+        run: |
+          node scripts/release/prebuild-runtime.mjs \
+            --payload-dir dist/npm \
+            --payload-dir dist/npm-vendor \
+            --payload-dir dist/npm-landlock \
+            --out "dist/filetree-runtime-${{ matrix.target }}.tar.gz"
       - name: Assemble installer staging
         env:
           PRIVATE_VERSION: ${{ inputs.private_version || '0.1' }}
         run: |
           source_version=$(node -p "require('./package.json').version")
           installer_version="${source_version}-bhn.${PRIVATE_VERSION}"
-          pnpm run release:assemble-installer --namespace bhnan --version "$installer_version" --source-version "$source_version" --dsh dist/npm --vendor dist/npm-vendor --landlock dist/npm-landlock --out "dist/filetree-installer"
+          pnpm run release:assemble-installer --namespace bhnan --version "$installer_version" --source-version "$source_version" --dsh dist/npm --vendor dist/npm-vendor --landlock dist/npm-landlock --out "dist/filetree-installer" --runtime-tarball-${{ matrix.target }} "dist/filetree-runtime-${{ matrix.target }}.tar.gz"
           mkdir -p dist/filetree-tarballs
           if [ "${{ matrix.target }}" = linux-x64 ]; then npm pack dist/filetree-installer/entry --pack-destination dist/filetree-tarballs; fi
           npm pack dist/filetree-installer/${{ matrix.target }} --pack-destination dist/filetree-tarballs

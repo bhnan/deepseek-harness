@@ -1,6 +1,6 @@
 /** Assemble the private, platform-selecting npm installer for the file-tree build. */
 
-import { chmodSync, copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { isEntry } from './process.ts'
@@ -27,6 +27,8 @@ export interface InstallerManifestOptions {
   readonly platform: string
   /** Tarballs that the platform runtime installs. */
   readonly payload: readonly PackedInstallerInput[]
+  /** Whether the package ships a CI-prebuilt runtime bundle for instant extraction. */
+  readonly includeRuntimeTarball?: boolean
 }
 
 /** Generated manifests and the deterministic payload index. */
@@ -127,7 +129,9 @@ export function createInstallerManifests(options: InstallerManifestOptions): Ins
     os: [...metadata.os],
     cpu: [...metadata.cpu],
     bin: { dsh: 'bin/dsh.mjs' },
-    files: ['bin', 'payload', 'scripts', 'README.md'],
+    files: options.includeRuntimeTarball === true
+      ? ['bin', 'payload', 'runtime.tar.gz', 'scripts', 'README.md']
+      : ['bin', 'payload', 'scripts', 'README.md'],
     scripts: { postinstall: 'node scripts/postinstall.mjs' },
     engines: { node: '>=22.19.0' },
     license: 'MIT',
@@ -158,7 +162,7 @@ function writeExecutable(path: string, content: string): void {
 
 /** Generate the platform runtime bootstrap script. */
 function postinstallSource(platform: InstallerPlatform): string {
-  return `import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+  return `import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -168,14 +172,31 @@ const expected = ${JSON.stringify(PLATFORMS[platform])}
 if (process.platform !== expected.os[0] || process.arch !== expected.cpu[0]) {
   throw new Error('This installer package was selected for ' + expected.os[0] + '/' + expected.cpu[0] + ', but the host is ' + process.platform + '/' + process.arch)
 }
-const payload = JSON.parse(readFileSync(join(packageRoot, 'payload', 'index.json'), 'utf8'))
+const runtimeTarball = join(packageRoot, 'runtime.tar.gz')
 const runtime = join(packageRoot, 'runtime')
-mkdirSync(runtime, { recursive: true })
-const dependencies = Object.fromEntries(Object.entries(payload).map(([name, filename]) => [name, 'file:../payload/' + filename]))
-writeFileSync(join(runtime, 'package.json'), JSON.stringify({ name: 'dsh-filetree-runtime', private: true, version: '0.0.0', dependencies }, null, 2) + '\\n')
-const result = spawnSync('npm', ['install', '--prefix', runtime, '--package-lock=false', '--no-audit', '--no-fund'], { stdio: 'inherit', env: process.env })
-if (result.error !== undefined) throw result.error
-if (result.status !== 0) throw new Error('npm failed while assembling the DeepSeek Harness runtime with exit code ' + String(result.status))
+const stamp = join(runtime, '.runtime-stamp')
+
+function main() {
+  if (existsSync(runtimeTarball)) {
+    if (existsSync(stamp) && existsSync(join(runtime, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))) return
+    // CI 已预装好的 runtime：一次解压即可，跳过本机 npm install。
+    mkdirSync(runtime, { recursive: true })
+    const extracted = spawnSync('tar', ['-xzf', runtimeTarball, '-C', runtime], { stdio: 'inherit' })
+    if (extracted.error !== undefined) throw extracted.error
+    if (extracted.status !== 0) throw new Error('tar failed while extracting the prebuilt DeepSeek Harness runtime with exit code ' + String(extracted.status))
+    writeFileSync(stamp, 'prebuilt\\n')
+    return
+  }
+  const payload = JSON.parse(readFileSync(join(packageRoot, 'payload', 'index.json'), 'utf8'))
+  mkdirSync(runtime, { recursive: true })
+  const dependencies = Object.fromEntries(Object.entries(payload).map(([name, filename]) => [name, 'file:../payload/' + filename]))
+  writeFileSync(join(runtime, 'package.json'), JSON.stringify({ name: 'dsh-filetree-runtime', private: true, version: '0.0.0', dependencies }, null, 2) + '\\n')
+  const result = spawnSync('npm', ['install', '--prefix', runtime, '--package-lock=false', '--no-audit', '--no-fund'], { stdio: 'inherit', env: process.env })
+  if (result.error !== undefined) throw result.error
+  if (result.status !== 0) throw new Error('npm failed while assembling the DeepSeek Harness runtime with exit code ' + String(result.status))
+}
+
+main()
 `
 }
 
@@ -228,8 +249,10 @@ function writeStagingPackage(
   launcher: string,
   postinstall: string | undefined,
   readme: string,
+  runtimeTarball: string | undefined,
 ): void {
   mkdirSync(join(path, 'bin'), { recursive: true })
+  if (runtimeTarball !== undefined) copyFileSync(runtimeTarball, join(path, 'runtime.tar.gz'))
   writeFileSync(join(path, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   writeFileSync(join(path, 'README.md'), `${readme.trimEnd()}\n`)
   writeExecutable(join(path, 'bin', 'dsh.mjs'), launcher)
@@ -243,6 +266,9 @@ function writeStagingPackage(
 }
 
 /** Assemble both platform packages and the shared entry package. */
+/** Prebuilt runtime bundles keyed by platform; presence switches postinstall to tar extraction. */
+export type RuntimeTarballMap = Partial<Record<InstallerPlatform, string>>
+
 export function assemblePlatformInstaller(options: {
   namespace: string
   version: string
@@ -251,8 +277,15 @@ export function assemblePlatformInstaller(options: {
   vendor: string
   landlock: string
   out: string
+  runtimeTarballs?: RuntimeTarballMap
 }): void {
   const root = resolve(options.out)
+  const runtimeTarballs = options.runtimeTarballs ?? {}
+  for (const [platform, tarball] of Object.entries(runtimeTarballs) as [InstallerPlatform, string][]) {
+    if (tarball !== undefined && !existsSync(tarball)) {
+      throw new Error(`runtime tarball for ${platform} does not exist: ${tarball}`)
+    }
+  }
   const payloadFiles = readPayloadDirectories([resolve(options.dsh), resolve(options.vendor), resolve(options.landlock)])
   const payload = payloadFiles.map(entry => entry.input)
   const entryManifests = createInstallerManifests({
@@ -261,6 +294,7 @@ export function assemblePlatformInstaller(options: {
     sourceVersion: options.sourceVersion,
     platform: 'macos-arm64',
     payload,
+    includeRuntimeTarball: runtimeTarballs['macos-arm64'] !== undefined,
   })
   const linuxManifests = createInstallerManifests({
     namespace: options.namespace,
@@ -268,13 +302,14 @@ export function assemblePlatformInstaller(options: {
     sourceVersion: options.sourceVersion,
     platform: 'linux-x64',
     payload,
+    includeRuntimeTarball: runtimeTarballs['linux-x64'] !== undefined,
   })
   rmSync(root, { recursive: true, force: true })
   mkdirSync(root, { recursive: true })
   const entryReadme = `# @${options.namespace}/${PACKAGE_SUFFIX.entry}\n\nInstall the DeepSeek Harness file-tree runtime on macOS Apple Silicon or Linux x64. Configure @${options.namespace}:registry=https://npm.pkg.github.com and a GitHub token with read:packages before installing.\n`
   const platformReadme = `# DeepSeek Harness platform runtime\n\nThis package is selected by @${options.namespace}/${PACKAGE_SUFFIX.entry} for its declared operating system and CPU.\n`
   const launchers = launcherSources(options.namespace)
-  writeStagingPackage(join(root, 'entry'), entryManifests.entry, [], {}, launchers.entry, undefined, entryReadme)
+  writeStagingPackage(join(root, 'entry'), entryManifests.entry, [], {}, launchers.entry, undefined, entryReadme, undefined)
   writeStagingPackage(
     join(root, 'macos-arm64'),
     entryManifests.platform,
@@ -283,6 +318,7 @@ export function assemblePlatformInstaller(options: {
     launchers.platform,
     postinstallSource('macos-arm64'),
     platformReadme,
+    runtimeTarballs['macos-arm64'],
   )
   const linuxLaunchers = launcherSources(options.namespace)
   writeStagingPackage(
@@ -293,6 +329,7 @@ export function assemblePlatformInstaller(options: {
     linuxLaunchers.platform,
     postinstallSource('linux-x64'),
     platformReadme,
+    runtimeTarballs['linux-x64'],
   )
   console.log(`release assemble-installer: wrote entry and 2 platform packages to ${options.out}`)
 }
@@ -303,6 +340,7 @@ function main(): void {
     options: {
       namespace: { type: 'string' }, version: { type: 'string' }, 'source-version': { type: 'string' }, dsh: { type: 'string' },
       vendor: { type: 'string' }, landlock: { type: 'string' }, out: { type: 'string' },
+      'runtime-tarball-macos-arm64': { type: 'string' }, 'runtime-tarball-linux-x64': { type: 'string' },
     },
     allowPositionals: false,
   })
@@ -324,6 +362,10 @@ function main(): void {
     vendor: value('vendor'),
     landlock: value('landlock'),
     out: value('out'),
+    runtimeTarballs: {
+      ...(values['runtime-tarball-macos-arm64'] !== undefined ? { 'macos-arm64': values['runtime-tarball-macos-arm64'] as string } : {}),
+      ...(values['runtime-tarball-linux-x64'] !== undefined ? { 'linux-x64': values['runtime-tarball-linux-x64'] as string } : {}),
+    },
   })
 }
 
