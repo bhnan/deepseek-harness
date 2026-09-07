@@ -24,6 +24,11 @@ export function apply(ctx: Context): void {
       return result.value
     },
     openPath: (path) => { void ctx.remote.session.openWorkspacePath({ path }) },
+    downloadFile: async (path, signal) => {
+      const result = await ctx.remote.workspaceFiles.download(path, signal)
+      if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+      return result.value
+    },
   })
   ctx.slots.inject('sidebar.filetree', () => ctx.slots.register({ name: 'sidebar.filetree', locale: 'filetree', inject: injected }, FileTreePanel))
 }
