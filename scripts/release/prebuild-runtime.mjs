@@ -47,14 +47,18 @@ const tarballs = []
 for (const directory of payloadDirs) {
   const absolute = resolve(directory)
   for (const filename of readdirSync(absolute).filter(file => file.endsWith('.tgz')).sort()) {
-    tarballs.push({ path: join(absolute, filename), filename })
+    // 按包名键控（与 postinstall 的 payload/index.json 一致），否则 npm 会去 registry 解析私有版本。
+    const manifest = JSON.parse(
+      spawnSync('tar', ['-xzOf', join(absolute, filename), 'package/package.json'], { encoding: 'utf8' }).stdout,
+    )
+    tarballs.push({ name: manifest.name, path: join(absolute, filename) })
   }
 }
 if (tarballs.length === 0) fail('no payload tarballs found')
 
 const worktree = mkdtempSync(join(tmpdir(), 'dsh-runtime-'))
 const runtime = join(worktree, 'runtime')
-const dependencies = Object.fromEntries(tarballs.map(entry => [entry.filename, `file:${entry.path}`]))
+const dependencies = Object.fromEntries(tarballs.map(entry => [entry.name, `file:${entry.path}`]))
 mkdirSync(runtime, { recursive: true })
 writeFileSync(
   join(runtime, 'package.json'),
