@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (semver，如 0.3.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        working-directory: plugins/dsh-im-channel
+        run: npm install --no-audit --no-fund
+
+      - name: Run tests
+        working-directory: plugins/dsh-im-channel
+        run: npm test
+
+      - name: Sync package version
+        working-directory: plugins/dsh-im-channel
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Pack installer tarball
+        working-directory: plugins/dsh-im-channel
+        run: npm pack
+
+      - name: Create GitHub Release with the installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${{ inputs.version }}"
+          tarball=$(ls plugins/dsh-im-channel/*.tgz | head -1)
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" "$tarball" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "$tarball" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "dsh-im-channel ${{ inputs.version }}" \
+              --notes "DSH ↔ IM Channel 安装包。安装: npm i -g $tarball （要求 dsh >= 0.1.2，Gateway wire）"
+          fi
