@@ -10,7 +10,6 @@ import {
 } from './connection.ts'
 import { createFixtureConnectionRpc } from './fixture.ts'
 import { createWebConnectionRpc, type RpcFetch, type RpcStreamOpen } from './rpc.ts'
-import { isLoopbackHostname } from '../loopback-hostname.ts'
 import type { ClientConnectionRpc } from '../rpc.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -221,7 +220,12 @@ export function apply(ctx: Context): void {
     publishState(undefined)
   }
   const handle: ConnectionHandle = {
-    isLoopback: transport?.ownsHost === true || pageLocation === undefined || isLoopbackHostname(pageLocation.hostname),
+    // The operator surface follows the deployment's authentication (password
+    // login / launch token), not the page origin; the server still enforces
+    // 401 (unauthenticated) and 403 (cross-site) via requestRejection.
+    // TODO: rename isLoopback to canUseHostSettings — it no longer means the
+    // literal loopback address.
+    isLoopback: true,
     generation: {
       getSnapshot: () => generation,
       subscribe: (listener) => {

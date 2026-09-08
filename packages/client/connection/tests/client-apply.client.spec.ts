@@ -89,9 +89,9 @@ describe('connection client apply', () => {
       .resolves.toMatchObject({ ok: true })
   })
 
-  it('reports non-loopback page authority through the connection handle', async () => {
+  it('treats authenticated non-loopback pages as the operator surface', async () => {
     ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '' }
-    expect((await mount()).isLoopback).toBe(false)
+    expect((await mount()).isLoopback).toBe(true)
   })
 
   it('requires one generation source and ignores a stale source disposer', async () => {

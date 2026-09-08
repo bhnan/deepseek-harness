@@ -51,11 +51,20 @@ export const inject = ['remote', 'remote.settings']
  * bound to each consuming plugin's context.
  * @param ctx - client root context.
  */
+/**
+ * The settings mirror is host-backed for every authenticated operator page:
+ * since 0.1.2 the decision follows the deployment's authentication (password
+ * login / launch token) rather than the page origin.
+ */
+export function settingsPersistenceFor(_isLoopback: boolean): 'host' | 'memory' {
+  return 'host'
+}
+
 export function apply(ctx: Context): void {
   const schema = new SettingsSchemaService(ctx)
   // Resolved once here, where `remote` is declared in this plugin's own
   // `inject`; the binder hands the same answer to every scope it binds.
-  const persistence = ctx.remote.$host.isLoopback ? 'host' : 'memory'
+  const persistence = settingsPersistenceFor(ctx.remote.$host.isLoopback)
   const mirror = new SettingsDescribeMirror(ctx, persistence)
   ctx.effect(() => {
     const disposers = [

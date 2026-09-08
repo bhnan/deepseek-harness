@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
-import { apply, inject } from '../src/client/index.ts'
+import { apply, inject, settingsPersistenceFor } from '../src/client/index.ts'
 import { SettingsSchemaService } from '../src/client/schema.ts'
 import { SettingsScopeBinder } from '../src/client/settings-scope.ts'
 import { apply as hostApply } from '../src/index.ts'
@@ -14,6 +14,13 @@ function bench() {
   const remote = new TestRemote(ctx, { settings: { describe: describeCall } })
   return { ctx, describeCall, remote, fiber: ctx.plugin({ inject: [...inject], apply }) }
 }
+
+describe('settings persistence decision', () => {
+  it('is host-backed regardless of page origin (authentication decides)', () => {
+    expect(settingsPersistenceFor(false)).toBe('host')
+    expect(settingsPersistenceFor(true)).toBe('host')
+  })
+})
 
 describe('settings domain base plugin', () => {
   it('keeps the host Loader entry inert', () => {
